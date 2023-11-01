@@ -3,12 +3,12 @@ package mysql
 import (
 	"context"
 	"encoding/json"
-	"metadata"
-	"snowflake"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/aixj1984/golibs/metadata"
+	"github.com/aixj1984/golibs/snowflake"
 	"github.com/aixj1984/golibs/zlog"
 )
 

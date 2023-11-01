@@ -23,7 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"gorm-plus/constants"
+	"github.com/aixj1984/golibs/gorm-plus/constants"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"gorm.io/gorm/utils"

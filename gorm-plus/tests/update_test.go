@@ -18,10 +18,11 @@
 package tests
 
 import (
-	"gorm-plus/gplus"
-	"gorm.io/gorm"
 	"strings"
 	"testing"
+
+	"github.com/aixj1984/golibs/gorm-plus/gplus"
+	"gorm.io/gorm"
 )
 
 func TestUpdateByIdName(t *testing.T) {

@@ -21,7 +21,7 @@ import (
 	"strings"
 	"testing"
 
-	"gorm-plus/gplus"
+	"github.com/aixj1984/golibs/gorm-plus/gplus"
 	"gorm.io/gorm"
 )
 
