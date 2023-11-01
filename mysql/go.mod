@@ -1,4 +1,4 @@
-module mysql
+module github.com/aixj1984/golibs/mysql
 
 go 1.21.1
 

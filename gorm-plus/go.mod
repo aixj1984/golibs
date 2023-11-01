@@ -1,4 +1,4 @@
-module gorm-plus
+module github.com/aixj1984/golibs/gorm-plus
 
 go 1.18
 

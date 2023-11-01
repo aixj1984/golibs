@@ -1,4 +1,4 @@
-module zlog
+module github.com/aixj1984/golibs/zlog
 
 go 1.21.1
 

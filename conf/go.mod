@@ -1,4 +1,4 @@
-module conf
+module github.com/aixj1984/golibs/conf
 
 go 1.21.1
 
