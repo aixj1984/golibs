@@ -1,0 +1,27 @@
+clothing:
+  jacket: leather
+  trousers: denim
+
+log:
+  appName: mysql-server
+  level: -1
+  debug: true
+  logPath: ./log/mysql-server.log
+  maxSize: 128
+  maxAge: 7
+  maxBackups: 30
+  compress: false
+
+mysqlDB:
+  alias: mysql-server
+  type: mysql
+  server: 127.0.0.1
+  port: 3306
+  user: root
+  password: my-secret-pw
+  charset: utf8mb4
+  database: ets_db
+  maxIdleConns: 3
+  maxOpenConns: 10
+  maxLeftTime: 10s
+  timezone: Local
