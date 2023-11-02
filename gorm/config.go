@@ -1,13 +1,14 @@
-package mysql
+package gorm
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
 type Config struct {
 	Alias        string        `yaml:"alias" json:"alias"`
-	Type         string        `yaml:"type" json:"type"`
+	Driver       string        `yaml:"driver" json:"driver"`
 	Server       string        `yaml:"server" json:"server"`
 	Port         int           `yaml:"port" json:"port"`
 	Database     string        `yaml:"database" json:"database"`
@@ -22,8 +23,8 @@ type Config struct {
 
 func authConfig(conf *Config) (err error) {
 
-	if len(conf.Type) == 0 {
-		conf.Type = defaultDatabase
+	if len(conf.Driver) == 0 {
+		conf.Driver = defaultDatabase
 	}
 	if conf.Port == 0 {
 		conf.Port = defaultPort
@@ -48,6 +49,13 @@ func authConfig(conf *Config) (err error) {
 	}
 	if conf.MaxOpenConns == 0 {
 		conf.MaxOpenConns = defaultMaxOpenConns
+	}
+
+	if strings.TrimSpace(conf.Charset) == "" {
+		conf.Charset = defaultCharset
+	}
+	if strings.TrimSpace(conf.TimeZone) == "" {
+		conf.TimeZone = defaultTimeZone
 	}
 
 	return

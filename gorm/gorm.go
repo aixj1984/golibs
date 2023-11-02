@@ -1,19 +1,29 @@
-package mysql
+package gorm
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	viper "github.com/aixj1984/golibs/conf"
 
-	_ "github.com/go-sql-driver/mysql"
+	// Import MySQL database driver
+	// _ "github.com/jinzhu/gorm/dialects/mysql"
+	"gorm.io/driver/mysql"
+
+	// Import PostgreSQL database driver
+	// _ "github.com/jinzhu/gorm/dialects/postgres"
+	"gorm.io/driver/postgres"
+
+	// Import SQLite3 database driver
+	//_ "github.com/jinzhu/gorm/dialects/sqlite"
+	"gorm.io/driver/sqlite"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"gorm.io/driver/mysql"
+
 	"gorm.io/gorm"
 )
 
@@ -26,7 +36,8 @@ const (
 
 var (
 	defaultDatabase     = "mysql"
-	connStrTmpl         = "%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=True&loc=%s"
+	mysqlConnStrTmpl    = "%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=True&loc=%s"
+	pgConnStrTmpl       = "host=%s port=%s user=%s dbname=%s password=%s TimeZone=%s"
 	defaultMaxOpenConns = 200
 	defaultMaxIdleConns = 60
 	defaultMaxLeftTime  = 300 * time.Second
@@ -41,7 +52,7 @@ type Engine struct {
 }
 
 func init() {
-	dbCfg, err := viper.GetSubCfg[Config]("mysqlDB")
+	dbCfg, err := viper.GetSubCfg[Config]("gorm")
 	if err != nil {
 		fmt.Printf("unable to get config, %s", err.Error())
 		return
@@ -63,32 +74,71 @@ func New(conf *Config) *Engine {
 	if err != nil {
 		panic(err)
 	}
-	if strings.TrimSpace(conf.Charset) == "" {
-		conf.Charset = defaultCharset
-	}
-	if strings.TrimSpace(conf.TimeZone) == "" {
-		conf.TimeZone = defaultTimeZone
-	}
+
 	gormConf := &gorm.Config{}
-	dsn := fmt.Sprintf(connStrTmpl,
-		conf.User,
-		conf.Password,
-		conf.Server,
-		conf.Port,
-		conf.Database,
-		conf.Charset,
-		conf.TimeZone)
-	db, err := gorm.Open(mysql.Open(dsn), gormConf)
-	if err != nil {
-		panic(err)
+	var db *gorm.DB = nil
+	switch conf.Driver {
+	case "mysql":
+		dsn := fmt.Sprintf(mysqlConnStrTmpl,
+			conf.User,
+			conf.Password,
+			conf.Server,
+			conf.Port,
+			conf.Database,
+			conf.Charset,
+			conf.TimeZone)
+
+		mysqlConfig := mysql.Config{
+			DriverName:                conf.Driver,
+			DSN:                       dsn,   // DSN data source name
+			DefaultStringSize:         255,   // string 类型字段的默认长度
+			SkipInitializeWithVersion: false, // 根据版本自动配置
+		}
+
+		db, err = gorm.Open(mysql.New(mysqlConfig), gormConf)
+		if err != nil {
+			panic(err)
+		}
+		break
+	case "postgres":
+		dsn := fmt.Sprintf(pgConnStrTmpl,
+			conf.Server,
+			conf.Port,
+			conf.User,
+			conf.Password,
+			conf.Database,
+			conf.TimeZone)
+		pgConfig := postgres.Config{
+			DriverName: conf.Driver,
+			DSN:        dsn, // DSN data source name
+		}
+		db, err = gorm.Open(postgres.New(pgConfig), gormConf)
+		if err != nil {
+			panic(err)
+		}
+		break
+	case "sqlite":
+		db, err = gorm.Open(sqlite.Open(conf.Database), &gorm.Config{
+			DisableForeignKeyConstraintWhenMigrating: true,
+		})
+		if err != nil {
+			panic("panic code: 155")
+		}
+		break
+	default:
+		panic("error db driver")
 	}
+
+	fmt.Println("DB connection successful!")
 
 	gormEngine = &Engine{db}
 	gormEngine.wrapLog()
+
 	sqlDB, err := db.DB()
 	if err != nil {
 		panic(err)
 	}
+
 	sqlDB.SetConnMaxLifetime(conf.MaxLeftTime)
 	sqlDB.SetMaxIdleConns(conf.MaxIdleConns)
 	sqlDB.SetMaxOpenConns(conf.MaxOpenConns)

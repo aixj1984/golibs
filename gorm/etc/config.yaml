@@ -12,15 +12,15 @@ log:
   maxBackups: 30
   compress: false
 
-mysqlDB:
+gorm:
   alias: mysql-server
-  type: mysql
+  driver: sqlite  # mysql sqlite postgres
   server: 127.0.0.1
   port: 3306
   user: root
   password: my-secret-pw
   charset: utf8mb4
-  database: ets_db
+  database: test.db
   maxIdleConns: 3
   maxOpenConns: 10
   maxLeftTime: 10s
