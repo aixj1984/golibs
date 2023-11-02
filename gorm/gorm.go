@@ -18,7 +18,8 @@ import (
 
 	// Import SQLite3 database driver
 	//_ "github.com/jinzhu/gorm/dialects/sqlite"
-	"gorm.io/driver/sqlite"
+	//"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
