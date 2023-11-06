@@ -1,4 +1,4 @@
-module github.com/aixj1984/golibs/mysql
+module github.com/aixj1984/golibs/gorm
 
 go 1.21.1
 
