@@ -16,11 +16,23 @@ func init() {
 	cfg.SetConfigName("config") // name of config file (without extension)
 	cfg.SetConfigType("yaml")   // REQUIRED if the config file does not have the extension in the name
 	cfg.AddConfigPath("./etc")  // optionally look for config in the working directory
-	fmt.Println("init")
+	err := cfg.ReadInConfig()   // Find and read the config file
+	if err != nil {             // Handle errors reading the config file
+		fmt.Printf("fatal error config file: %s\n", err.Error())
+		cfg = nil
+	}
+}
+
+func New(path string) (*viper.Viper, error) {
+	cfg = viper.New()
+	cfg.SetConfigFile(path)
 	err := cfg.ReadInConfig() // Find and read the config file
 	if err != nil {           // Handle errors reading the config file
 		fmt.Printf("fatal error config file: %s\n", err.Error())
+		cfg = nil
+		return nil, err
 	}
+	return cfg, nil
 }
 
 func GetViper() *viper.Viper {

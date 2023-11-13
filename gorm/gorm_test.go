@@ -7,8 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aixj1984/golibs/metadata"
-	"github.com/aixj1984/golibs/snowflake"
+	"github.com/google/uuid"
 	"github.com/aixj1984/golibs/zlog"
 )
 
@@ -103,18 +102,17 @@ func TestSelect(t *testing.T) {
 		Where("id in (?)", []int64{1, 2, 3}).
 		Select("id, nick_name, `created_at`,`updated_at`").
 		Scan(&res)
-	newID, err := snowflake.NewID()
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx = context.WithValue(ctx, metadata.HttpTraceId, newID)
+	newID := uuid.New().String()
+
+	ctx = context.WithValue(ctx, "trace_id", newID)
 	logger := zlog.Logger().WithContext(ctx)
 
-	var bytes []byte
-	if bytes, err = json.Marshal(res); err != nil {
-		panic(err)
+	if bytes, err := json.Marshal(res); err != nil {
+		t.Fatal(err)
+	} else {
+		logger.Sugar().Infof("over %s", string(bytes))
 	}
-	logger.Sugar().Infof("over %s", string(bytes))
+
 }
 
 func TestCondition(t *testing.T) {
@@ -136,6 +134,5 @@ func TestCondition(t *testing.T) {
 		t.Fatal(err)
 	}
 	zlog.Info("query result", zlog.Fields{"records": records})
-	return
 
 }

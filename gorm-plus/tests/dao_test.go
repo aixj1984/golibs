@@ -25,23 +25,33 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/aixj1984/golibs/gorm-plus/gplus"
-	"gorm.io/driver/mysql"
+	"github.com/aixj1984/gorm-plus/gplus"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 var gormDb *gorm.DB
 
 func init() {
-	dsn := "root:my-secret-pw@tcp(127.0.0.1:3306)/test_db?charset=utf8mb4&parseTime=True&loc=Local"
+	// mysql test
+	// dsn := "root:my-secret-pw@tcp(127.0.0.1:3306)/test_db?charset=utf8mb4&parseTime=True&loc=Local"
+	// var err error
+	// gormDb, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
+	// 	Logger: logger.Default.LogMode(logger.Info),
+	// })
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
+
+	// sqlite test
 	var err error
-	gormDb, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+	gormDb, err = gorm.Open(sqlite.Open("test.db"), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
-		fmt.Println(err)
+		panic("panic code: 155")
 	}
+
 	var u User
 	gormDb.AutoMigrate(u)
 	gplus.Init(gormDb)
@@ -486,7 +496,7 @@ func TestSelectGeneric5(t *testing.T) {
 	for _, user := range users {
 		agesMap[user.Age] = struct{}{}
 	}
-	for key, _ := range agesMap {
+	for key := range agesMap {
 		ages = append(ages, key)
 	}
 	sort.Ints(ages)
@@ -545,11 +555,19 @@ func TestSelectGeneric7(t *testing.T) {
 	}
 
 	for _, umap := range UserVos {
-		scoreStr := umap["score"].(string)
-		score, err := strconv.Atoi(scoreStr)
-		if err != nil {
-			t.Errorf("errors happened when SelectGeneric")
+		var score int
+		var err error
+		if v, ok := umap["score"].(string); ok {
+			score, err = strconv.Atoi(v)
+			if err != nil {
+				t.Errorf("errors happened when SelectGeneric")
+			}
+		} else if v, ok := umap["score"].(int64); ok {
+			score = int(v)
+		} else {
+			t.Errorf("errors  happened score when SelectGeneric")
 		}
+
 		dept := umap["dept"].(string)
 
 		if userMap[dept] != score {

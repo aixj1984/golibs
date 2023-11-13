@@ -53,7 +53,7 @@ VALUES
 下载Gorm-Plus
 
 ```SQL
- go get gorm-plus
+ go get github.com/aixj1984/gorm-plus
 ```
 
 
@@ -62,7 +62,7 @@ VALUES
 package main
 
 import (
-  "gorm-plus/gplus"
+  "github.com/aixj1984/gorm-plus/gplus"
   "gorm.io/driver/mysql"
   "gorm.io/gorm"
   "gorm.io/gorm/logger"
@@ -108,6 +108,23 @@ func main() {
   }
 }
 
+```
+
+
+
+```go
+  // sqlite 初始化
+	var err error
+	gormDb, err = gorm.Open(sqlite.Open("test.db"), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
+	if err != nil {
+		panic("panic code: 155")
+	}
+
+	var u User
+	gormDb.AutoMigrate(u)
+	gplus.Init(gormDb)
 ```
 
 
