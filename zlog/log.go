@@ -11,48 +11,46 @@ import (
 	viper "github.com/aixj1984/golibs/conf"
 )
 
+// Config 是log文件的参数配置
 type Config struct {
-	LogPath    string `yaml:"logPath" json:"logPath"`
-	AppName    string `yaml:"appName" json:"appName"`
-	Debug      bool   `yaml:"debug" json:"debug"`
-	Level      int8   `yaml:"level" json:"level"`
-	MaxSize    int    `yaml:"maxSize" json:"maxSize"`
-	MaxAge     int    `yaml:"maxAge" json:"maxAge"`
-	MaxBackups int    `yaml:"maxBackups" json:"maxBackups"`
-	Compress   bool   `yaml:"compress" json:"compress"`
+	LogPath    string `mapstructure:"logPath"`
+	AppName    string `mapstructure:"appName"`
+	Debug      bool   `mapstructure:"debug"`
+	Level      int8   `mapstructure:"level"`
+	MaxSize    int    `mapstructure:"maxSize"`
+	MaxAge     int    `mapstructure:"maxAge"`
+	MaxBackups int    `mapstructure:"maxBackups"`
+	Compress   bool   `mapstructure:"compress"`
 }
 
 var (
-	h    *Entry
-	conf *Config
+	mLog  *Entry
+	mConf *Config
 )
 
 func init() {
-
 	logCfg, err := viper.GetSubCfg[Config]("log")
 	if err != nil {
 		fmt.Printf("unable to get config, %s\n", err.Error())
 		return
-	} else {
-		InitLogger(logCfg)
 	}
+	InitLogger(logCfg)
 }
 
+// InitLogger 通过传入的config，来初始化日志对象
 func InitLogger(config *Config) {
-	if h != nil {
-		return
-	}
-
-	conf = config
 	if config.MaxSize < 1 {
 		config.MaxSize = 1
 	}
+
 	if config.MaxAge < 1 {
 		config.MaxAge = 1
 	}
+
 	if config.MaxBackups < 1 {
 		config.MaxBackups = 1
 	}
+
 	hook := lumberjack.Logger{
 		Filename:   config.LogPath,    // 日志文件路径
 		MaxSize:    config.MaxSize,    // 每个日志文件保存的大小 单位:M
@@ -60,6 +58,7 @@ func InitLogger(config *Config) {
 		MaxBackups: config.MaxBackups, // 日志文件最多保存多少个备份
 		Compress:   false,             // 是否压缩
 	}
+
 	encoderConfig := zapcore.EncoderConfig{
 		MessageKey:     "msg",
 		LevelKey:       "level",
@@ -78,11 +77,13 @@ func InitLogger(config *Config) {
 	atomicLevel := zap.NewAtomicLevel()
 
 	atomicLevel.SetLevel(zapcore.Level(config.Level))
-	var writes = []zapcore.WriteSyncer{zapcore.AddSync(&hook)}
+	writes := []zapcore.WriteSyncer{zapcore.AddSync(&hook)}
+
 	// 如果是开发环境，同时在控制台上也输出
 	if config.Debug {
 		writes = append(writes, zapcore.AddSync(os.Stdout))
 	}
+
 	encoder := zapcore.NewJSONEncoder(encoderConfig)
 	core := zapcore.NewTee(
 		zapcore.NewCore(encoder, zapcore.NewMultiWriteSyncer(writes...), atomicLevel),
@@ -93,105 +94,133 @@ func InitLogger(config *Config) {
 	callerSkip := zap.AddCallerSkip(1)
 	// 开启文件及行号
 	development := zap.Development()
+
 	// 设置初始化字段
 	field := zap.Fields(zap.String("appName", config.AppName))
+
 	// 构造日志
-	h = NewEntry(zap.New(core, caller, callerSkip, development, field).WithOptions(zap.AddCallerSkip(1)))
+	mLog = NewEntry(zap.New(core, caller, callerSkip, development, field).WithOptions(zap.AddCallerSkip(1)))
+
+	mConf = config
 }
 
+// Empty 是将当前的日志对象设置为null
 func Empty() bool {
-	return h == nil
+	return mLog == nil
 }
 
-// 不建议再获取对象，除非要调用zap的特殊功能
+// Logger 获取当前的日志对象
 func Logger() *Entry {
-	return h
+	// 不建议再获取对象，除非要调用zap的特殊功能
+	return mLog
 }
 
+// GetConfig 获取当前的配置文件信息
 func GetConfig() *Config {
-	return conf
+	return mConf
 }
 
+// Debug 输出debug级别的日志
 func Debug(msg string, fields Fields) {
-	h.Debug(msg, fields)
+	mLog.Debug(msg, fields)
 }
 
+// DebugO 输出debug级别的任意对象到日志
 func DebugO(msg string, object interface{}) {
-	h.Debug(msg, object)
+	mLog.Debug(msg, object)
 }
 
+// Debugf 输出debug级别的format日志
 func Debugf(format string, args ...interface{}) {
-	h.Debug("", Fields{"content": fmt.Sprintf(format, args...)})
+	mLog.Debug("", Fields{"content": fmt.Sprintf(format, args...)})
 }
 
+// Info 输出info级别的日志
 func Info(msg string, fields Fields) {
-	h.Info(msg, fields)
+	mLog.Info(msg, fields)
 }
 
+// InfoO 输出info级别的任意对象到日志
 func InfoO(msg string, object interface{}) {
-	h.Info(msg, object)
+	mLog.Info(msg, object)
 }
 
+// Infof 输出info级别的format日志
 func Infof(format string, args ...interface{}) {
-	h.Info("", Fields{"content": fmt.Sprintf(format, args...)})
+	mLog.Info("", Fields{"content": fmt.Sprintf(format, args...)})
 }
 
+// Warn 输出warn级别的日志
 func Warn(msg string, fields Fields) {
-	h.Warn(msg, fields)
+	mLog.Warn(msg, fields)
 }
 
+// WarnO 输出warn级别的任意对象到日志
 func WarnO(msg string, object interface{}) {
-	h.Warn(msg, object)
+	mLog.Warn(msg, object)
 }
 
+// Warnf 输出warn级别的format日志
 func Warnf(format string, args ...interface{}) {
-	h.Warn("", Fields{"content": fmt.Sprintf(format, args...)})
+	mLog.Warn("", Fields{"content": fmt.Sprintf(format, args...)})
 }
 
+// Error 输出error级别的日志
 func Error(msg string, fields Fields) {
-	h.Error(msg, fields)
+	mLog.Error(msg, fields)
 }
 
+// ErrorO 输出error级别的任意对象到日志
 func ErrorO(msg string, object interface{}) {
-	h.Error(msg, object)
+	mLog.Error(msg, object)
 }
 
+// Errorf 输出error级别的format日志
 func Errorf(format string, args ...interface{}) {
-	h.Error("", Fields{"content": fmt.Sprintf(format, args...)})
+	mLog.Error("", Fields{"content": fmt.Sprintf(format, args...)})
 }
 
+// DPanic 输出dpanic级别的日志,同时进程退出
 func DPanic(msg string, fields Fields) {
-	h.DPanic(msg, fields)
+	mLog.DPanic(msg, fields)
 }
 
+// DPanicO 输出dpanic级别的任意对象到日志,同时进程退出
 func DPanicO(msg string, object interface{}) {
-	h.DPanic(msg, object)
+	mLog.DPanic(msg, object)
 }
 
+// DPanicf 输出dpanic级别的format日志,同时进程退出
 func DPanicf(format string, args ...interface{}) {
-	h.DPanic("", Fields{"content": fmt.Sprintf(format, args...)})
+	mLog.DPanic("", Fields{"content": fmt.Sprintf(format, args...)})
 }
 
+// Panic 输出fatal级别的日志,同时进程退出
 func Panic(msg string, fields Fields) {
-	h.Panic(msg, fields)
+	mLog.Panic(msg, fields)
 }
 
+// PanicO 输出panic级别的任意对象到日志,同时进程退出
 func PanicO(msg string, object interface{}) {
-	h.Panic(msg, object)
+	mLog.Panic(msg, object)
 }
 
+// Panicf 输出panic级别的format日志,同时进程退出
 func Panicf(format string, args ...interface{}) {
-	h.Panic("", Fields{"content": fmt.Sprintf(format, args...)})
+	mLog.Panic("", Fields{"content": fmt.Sprintf(format, args...)})
 }
 
+// Fatal 输出fatal级别的日志,同时进程退出
 func Fatal(msg string, fields Fields) {
-	h.Fatal(msg, fields)
+	mLog.Fatal(msg, fields)
 }
 
+// FatalO 输出fatal级别的任意对象到日志,同时进程退出
 func FatalO(msg string, object interface{}) {
-	h.Fatal(msg, object)
+	mLog.Fatal(msg, object)
 }
 
+// Fatalf 输出fatal级别的format日志,同时进程退出
 func Fatalf(format string, args ...interface{}) {
-	h.Fatal("", Fields{"content": fmt.Sprintf(format, args...)})
+	mLog.Fatal("", Fields{"content": fmt.Sprintf(format, args...)})
 }

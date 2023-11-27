@@ -1,7 +1,6 @@
 package zlog
 
-import "go.uber.org/zap/zapcore"
+// type Field zapcore.Field
 
-type Field zapcore.Field
-
+// Fields is standardize the format type of output logs.
 type Fields map[string]interface{}

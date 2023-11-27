@@ -19,24 +19,45 @@ package gplus
 
 import (
 	"database/sql"
+	"errors"
 	"reflect"
 	"strings"
 	"time"
 
+	"github.com/aixj1984/golibs/gorm"
 	"github.com/aixj1984/golibs/gorm-plus/constants"
-
-	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"gorm.io/gorm/utils"
 )
 
-var globalDb *gorm.DB
-var defaultBatchSize = 1000
+var (
+	globalDb         *gorm.DB
+	defaultBatchSize = 1000
+)
 
-func Init(db *gorm.DB) {
+func init() {
+	db := gorm.GetEngine()
+	if db == nil {
+		return
+	}
+	globalDb = db.GetDB()
+}
+
+// SetDB 给封装的plus设置DB对象
+func SetDB(db *gorm.DB) {
+	if db == nil {
+		return
+	}
 	globalDb = db
 }
 
+// SelectDB 根据别名，获取DB对象
+func SelectDB(aliasNames ...string) *gorm.DB {
+	globalDb = gorm.GetEngine(aliasNames...).GetDB()
+	return globalDb
+}
+
+// Page 分页查询的返货结果
 type Page[T any] struct {
 	Current    int   `json:"page"`     // 页码
 	Size       int   `json:"pageSize"` // 每页大小
@@ -46,12 +67,15 @@ type Page[T any] struct {
 	RecordsMap []T   `json:"listMap"`
 }
 
+// Dao 是对操作数据库的一个封装类
 type Dao[T any] struct{}
 
+// NewQuery 构造一个新的对象
 func (dao Dao[T]) NewQuery() (*QueryCond[T], *T) {
 	return NewQuery[T]()
 }
 
+// NewPage 构造一个分页查询条件
 func NewPage[T any](current, size int) *Page[T] {
 	return &Page[T]{Current: current, Size: size}
 }
@@ -207,26 +231,26 @@ func PluckDistinct[T any, R any](column string, q *QueryCond[T], opts ...OptionF
 	return results, resultDb
 }
 
-// SelectListBySql 按任意SQL执行,指定返回类型数组
-func SelectListBySql[R any](querySql string, opts ...OptionFunc) ([]*R, *gorm.DB) {
+// SelectListBySQL 按任意SQL执行,指定返回类型数组
+func SelectListBySQL[R any](querySQL string, opts ...OptionFunc) ([]*R, *gorm.DB) {
 	resultDb := getDb(opts...)
 	var results []*R
-	resultDb = resultDb.Raw(querySql).Scan(&results)
+	resultDb = resultDb.Raw(querySQL).Scan(&results)
 	return results, resultDb
 }
 
-// SelectOneBySql 根据原始的SQL语句，取一个
-func SelectOneBySql[R any](countSql string, opts ...OptionFunc) (R, *gorm.DB) {
+// SelectOneBySQL 根据原始的SQL语句，取一个
+func SelectOneBySQL[R any](countSQL string, opts ...OptionFunc) (R, *gorm.DB) {
 	resultDb := getDb(opts...)
 	var result R
-	resultDb = resultDb.Raw(countSql).Scan(&result)
+	resultDb = resultDb.Raw(countSQL).Scan(&result)
 	return result, resultDb
 }
 
-// ExcSql 按任意SQL执行,返回影响的行
-func ExcSql(querySql string, opts ...OptionFunc) *gorm.DB {
+// ExcSQL 按任意SQL执行,返回影响的行
+func ExcSQL(querySQL string, opts ...OptionFunc) *gorm.DB {
 	resultDb := getDb(opts...)
-	resultDb = resultDb.Exec(querySql)
+	resultDb = resultDb.Exec(querySQL)
 	return resultDb
 }
 
@@ -267,7 +291,7 @@ func SelectPage[T any](page *Page[T], q *QueryCond[T], opts ...OptionFunc) (*Pag
 func SelectCount[T any](q *QueryCond[T], opts ...OptionFunc) (int64, *gorm.DB) {
 	var count int64
 	resultDb := buildCondition(q, opts...)
-	//fix 查询有设置Select并且数量只有一个且有设置别名,生成sql不对问题
+	// fix 查询有设置Select并且数量只有一个且有设置别名,生成sql不对问题
 	resultDb.Statement.Selects = nil
 	resultDb.Count(&count)
 	return count, resultDb
@@ -276,7 +300,7 @@ func SelectCount[T any](q *QueryCond[T], opts ...OptionFunc) (int64, *gorm.DB) {
 // Exists 根据条件判断记录是否存在
 func Exists[T any](q *QueryCond[T], opts ...OptionFunc) (bool, error) {
 	count, resultDb := SelectCount[T](q, opts...)
-	if resultDb.Error == gorm.ErrRecordNotFound {
+	if errors.Is(resultDb.Error, gorm.ErrRecordNotFound) {
 		return false, nil
 	}
 	return count > 0, resultDb.Error
@@ -320,6 +344,7 @@ func SelectGeneric[T any, R any](q *QueryCond[T], opts ...OptionFunc) (R, *gorm.
 	return entity, resultDb.Scan(&entity)
 }
 
+// Begin 起一个事务
 func Begin(opts ...*sql.TxOptions) *gorm.DB {
 	db := getDb()
 	return db.Begin(opts...)
@@ -362,7 +387,7 @@ func buildCondition[T any](q *QueryCond[T], opts ...OptionFunc) *gorm.DB {
 		expressions := q.queryExpressions
 		if len(expressions) > 0 {
 			var sqlBuilder strings.Builder
-			q.queryArgs = buildSqlAndArgs[T](expressions, &sqlBuilder, q.queryArgs)
+			q.queryArgs = buildSQLAndArgs[T](expressions, &sqlBuilder, q.queryArgs)
 			resultDb.Where(sqlBuilder.String(), q.queryArgs...)
 		}
 
@@ -389,21 +414,21 @@ func buildCondition[T any](q *QueryCond[T], opts ...OptionFunc) *gorm.DB {
 	return resultDb
 }
 
-func buildSqlAndArgs[T any](expressions []any, sqlBuilder *strings.Builder, queryArgs []any) []any {
+func buildSQLAndArgs[T any](expressions []any, sqlBuilder *strings.Builder, queryArgs []any) []any {
 	for _, v := range expressions {
 		// 判断是否是columnValue类型
 		switch segment := v.(type) {
 		case *columnPointer:
-			sqlBuilder.WriteString(segment.getSqlSegment() + " ")
+			sqlBuilder.WriteString(segment.getSQLSegment() + " ") //nolint
 		case *sqlKeyword:
-			sqlBuilder.WriteString(segment.getSqlSegment() + " ")
+			sqlBuilder.WriteString(segment.getSQLSegment() + " ") //nolint
 		case *columnValue:
 			if segment.value == constants.And {
-				sqlBuilder.WriteString(segment.value.(string) + " ")
+				sqlBuilder.WriteString(segment.value.(string) + " ") //nolint
 				continue
 			}
 			if segment.value != "" {
-				sqlBuilder.WriteString("? ")
+				sqlBuilder.WriteString("? ") //nolint
 				queryArgs = append(queryArgs, segment.value)
 			}
 		case *QueryCond[T]:
@@ -411,10 +436,10 @@ func buildSqlAndArgs[T any](expressions []any, sqlBuilder *strings.Builder, quer
 			if len(segment.queryExpressions) == 0 {
 				continue
 			}
-			sqlBuilder.WriteString(constants.LeftBracket + " ")
+			sqlBuilder.WriteString(constants.LeftBracket + " ") //nolint
 			// 递归处理条件
-			queryArgs = buildSqlAndArgs[T](segment.queryExpressions, sqlBuilder, queryArgs)
-			sqlBuilder.WriteString(constants.RightBracket + " ")
+			queryArgs = buildSQLAndArgs[T](segment.queryExpressions, sqlBuilder, queryArgs)
+			sqlBuilder.WriteString(constants.RightBracket + " ") //nolint
 		}
 	}
 	return queryArgs
@@ -423,7 +448,7 @@ func buildSqlAndArgs[T any](expressions []any, sqlBuilder *strings.Builder, quer
 func getDb(opts ...OptionFunc) *gorm.DB {
 	option := getOption(opts)
 	// Clauses()目的是为了初始化Db，如果db已经被初始化了,会直接返回db
-	var db = globalDb.Clauses()
+	db := globalDb.Clauses()
 
 	if option.Db != nil {
 		db = option.Db.Clauses()

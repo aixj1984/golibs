@@ -1,6 +1,7 @@
 package conf
 
 import (
+	"fmt"
 	"log"
 	"testing"
 	"time"
@@ -8,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type testConfig struct {
+type TestConfig struct {
 	Jacket   string        `json:"jacket"`
 	Trousers string        `json:"trousers"`
 	Times    time.Duration `json:"times"`
@@ -25,7 +26,7 @@ func TestGetSubViperNil(t *testing.T) {
 }
 
 func TestGetAllCfgNil(t *testing.T) {
-	v, err := GetAllCfg[testConfig]()
+	v, err := GetAllCfg[TestConfig]()
 	if err != nil {
 		t.Logf("new failed: %v", err)
 	}
@@ -33,7 +34,7 @@ func TestGetAllCfgNil(t *testing.T) {
 }
 
 func TestGetSubCfgNil(t *testing.T) {
-	v, err := GetSubCfg[testConfig]("abc")
+	v, err := GetSubCfg[TestConfig]("abc")
 	if err != nil {
 		t.Logf("new failed: %v", err)
 	}
@@ -67,23 +68,40 @@ func TestGetSubViper(t *testing.T) {
 }
 
 func TestGetAllCfg(t *testing.T) {
-	var config *testConfig
-	config, err := GetAllCfg[testConfig]()
+	type LogConfig struct {
+		LogPath    string `json:"logPath"`
+		AppName    string `json:"appName"`
+		Debug      bool   `json:"debug"`
+		Level      int8   `json:"level"`
+		MaxSize    int
+		MaxAge     int  `json:"maxAge"`
+		MaxBackups int  `json:"maxBackups"`
+		Compress   bool `json:"compress"`
+	}
+
+	type testConfigA struct {
+		Log  LogConfig  `mapstructure:"log"`
+		Test TestConfig `mapstructure:"clothing"`
+	}
+
+	var config *testConfigA
+	config, err := GetAllCfg[testConfigA]()
 	if err != nil {
 		t.Fatalf("GetAllCfg failed: %v", err)
 	}
+	fmt.Printf("config %+v", config)
 	assert.NotNil(t, config)
 }
 
 func TestGetSubCfg(t *testing.T) {
-	var config *testConfig
-	config, err := GetSubCfg[testConfig]("invalid_scope")
+	var config *TestConfig
+	config, err := GetSubCfg[TestConfig]("invalid_scope")
 	if err == nil {
 		t.Fatalf("Expected error for invalid scope, but got none")
 	}
 	assert.Nil(t, config)
 
-	config, err = GetSubCfg[testConfig]("clothing")
+	config, err = GetSubCfg[TestConfig]("clothing")
 	if err != nil {
 		t.Fatalf("GetSubCfg failed: %v", err)
 	}
@@ -91,13 +109,12 @@ func TestGetSubCfg(t *testing.T) {
 }
 
 func TestSubViber(t *testing.T) {
-
 	subv := cfg.Sub("clothing")
 	if subv == nil {
 		log.Fatalf("No 'database' key in config")
 	}
 
-	var data databaseConfig
+	var data TestConfig
 
 	if err := subv.Unmarshal(&data); err != nil {
 		log.Fatalf("Unable to decode into struct, %s", err.Error())
@@ -107,12 +124,43 @@ func TestSubViber(t *testing.T) {
 }
 
 func TestSub(t *testing.T) {
-	data, err := GetSubCfg[databaseConfig]("clothing")
+	data, err := GetSubCfg[TestConfig]("clothing")
 	if err != nil {
 		log.Fatalf("get sub cfg  error, %s", err.Error())
 	} else {
 		log.Printf("config %v ", data)
 	}
+}
+
+func TestAllFieldErr(t *testing.T) {
+	type testField struct {
+		A string `json:"a"`
+		B int    `json:"b"`
+	}
+	type allField struct {
+		ErrField testField `json:"errField"`
+	}
+	data, err := GetAllCfg[allField]()
+	if err != nil {
+		log.Printf("get all cfg  error, %s", err.Error())
+	} else {
+		log.Printf("config %v ", data)
+	}
+	assert.Nil(t, data)
+}
+
+func TestSubFieldErr(t *testing.T) {
+	type testField struct {
+		A string `json:"a"`
+		B int    `json:"b"`
+	}
+	data, err := GetSubCfg[testField]("errField")
+	if err != nil {
+		log.Printf("get sub cfg  error, %s", err.Error())
+	} else {
+		log.Printf("config %v ", data)
+	}
+	assert.Nil(t, data)
 }
 
 func TestGetAnyField(t *testing.T) {

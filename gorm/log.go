@@ -8,18 +8,16 @@ import (
 	"github.com/aixj1984/golibs/zlog"
 )
 
-type LoggerFunc func(...interface{})
+// Writer 重新定义gorm的writer类
+type Writer struct{}
 
-func (f LoggerFunc) Print(args ...interface{}) { f(args...) }
-
-type Writer struct {
-}
-
+// Printf 是gorm日志输出的实现
 func (w Writer) Printf(format string, args ...interface{}) {
 	zlog.Infof(format, args...)
 }
 
-func (db *Engine) wrapLog() {
+// WrapLog 更新gorm的log实现
+func (db *Engine) WrapLog() {
 	if zlog.Logger() == nil {
 		return
 	}

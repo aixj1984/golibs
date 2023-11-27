@@ -78,7 +78,7 @@ if err := subv.Unmarshal(&data); err != nil {
 ## 开始使用
 
 ```SQL
- go get g3.io/golibs/conf
+ go get github.com/aixj1984/golibs/conf
 ```
 
 

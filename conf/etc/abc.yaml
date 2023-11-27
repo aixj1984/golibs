@@ -3,12 +3,16 @@ clothing:
   trousers: denim
   times: 10s
 
-logConf:
+log:
   appName: admin-server
   level: -1
   debug: true
   logPath: ./log/admin-server.log
-  maxSize: 128
+  maxSize: 1289
   maxAge: 7
   maxBackups: 30
   compress: false
+
+errField:  
+  a: asldkfjaskldfjasldkfjaslfjlasd
+  b: aaa

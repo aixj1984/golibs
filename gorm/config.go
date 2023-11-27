@@ -1,28 +1,29 @@
 package gorm
 
 import (
-	"fmt"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
+// Config 是gorm的配置文件字段定义
 type Config struct {
-	Alias        string        `yaml:"alias" json:"alias"`
-	Driver       string        `yaml:"driver" json:"driver"`
-	Server       string        `yaml:"server" json:"server"`
-	Port         int           `yaml:"port" json:"port"`
-	Database     string        `yaml:"database" json:"database"`
-	User         string        `yaml:"user" json:"user"`
-	Password     string        `yaml:"password" json:"password"`
-	MaxIdleConns int           `yaml:"maxIdleConns" json:"maxIdleConns"`
-	MaxOpenConns int           `yaml:"maxOpenConns" json:"maxOpenConns"`
-	Charset      string        `yaml:"charset" json:"charset"`
-	TimeZone     string        `yaml:"timezone" json:"timezone"`
-	MaxLeftTime  time.Duration `yaml:"maxLeftTime" json:"maxLeftTime"`
+	Alias        string        `mapstructure:"alias" json:"alias"`
+	Driver       string        `mapstructure:"driver" json:"driver"`
+	Server       string        `mapstructure:"server" json:"server"`
+	Port         int           `mapstructure:"port" json:"port"`
+	Database     string        `mapstructure:"database" json:"database"`
+	User         string        `mapstructure:"user" json:"user"`
+	Password     string        `mapstructure:"password" json:"password"`
+	MaxIdleConns int           `mapstructure:"maxIdleConns" json:"maxIdleConns"`
+	MaxOpenConns int           `mapstructure:"maxOpenConns" json:"maxOpenConns"`
+	Charset      string        `mapstructure:"charset" json:"charset"`
+	TimeZone     string        `mapstructure:"timezone" json:"timezone"`
+	MaxLeftTime  time.Duration `mapstructure:"maxLeftTime" json:"maxLeftTime"`
 }
 
 func authConfig(conf *Config) (err error) {
-
 	if len(conf.Driver) == 0 {
 		conf.Driver = defaultDatabase
 	}
@@ -30,15 +31,16 @@ func authConfig(conf *Config) (err error) {
 		conf.Port = defaultPort
 	}
 	if len(conf.User) == 0 || len(conf.Password) == 0 {
-		err = fmt.Errorf("User or  Password is empty")
+		err = errors.New("User or  Password is empty")
 		return
 	}
+
 	if len(conf.Server) == 0 {
-		err = fmt.Errorf("server addr is empty")
+		err = errors.New("server addr is empty")
 		return
 	}
 	if len(conf.Database) == 0 {
-		err = fmt.Errorf("database is empty")
+		err = errors.New("database is empty")
 		return
 	}
 	if conf.MaxIdleConns == 0 {

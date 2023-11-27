@@ -2,7 +2,7 @@ clothing:
   jacket: leather
   trousers: denim
 
-logA:
+log:
   appName: mysql-server
   level: -1
   debug: true
@@ -12,7 +12,7 @@ logA:
   maxBackups: 30
   compress: false
 
-gormA:
+gorm:
   alias: mysql-server
   driver: sqlite  # mysql sqlite postgres
   server: 127.0.0.1

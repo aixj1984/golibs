@@ -25,8 +25,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/aixj1984/gorm-plus/gplus"
-	"github.com/glebarez/sqlite"
+	"github.com/aixj1984/golibs/gorm-plus/gplus"
 	"gorm.io/gorm"
 )
 
@@ -44,17 +43,17 @@ func init() {
 	// }
 
 	// sqlite test
-	var err error
-	gormDb, err = gorm.Open(sqlite.Open("test.db"), &gorm.Config{
-		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		panic("panic code: 155")
-	}
+	// var err error
+	// gormDb, err = gorm.Open(sqlite.Open("test.db"), &gorm.Config{
+	// 	DisableForeignKeyConstraintWhenMigrating: true,
+	// })
+	// if err != nil {
+	// 	panic("panic code: 155")
+	// }
 
 	var u User
+	gormDb = gplus.SelectDB()
 	gormDb.AutoMigrate(u)
-	gplus.Init(gormDb)
 }
 
 func TestInsert(t *testing.T) {
@@ -186,7 +185,6 @@ func TestUpdateById(t *testing.T) {
 		t.Fatalf("errors happened when SelectById: %v", db.Error)
 	}
 	AssertObjEqual(t, newUser, user, "ID", "Username", "Password", "Address", "Age", "Phone", "Score", "Dept", "CreatedAt", "UpdatedAt")
-
 }
 
 func TestUpdateZeroById(t *testing.T) {
@@ -205,7 +203,6 @@ func TestUpdateZeroById(t *testing.T) {
 		t.Fatalf("errors happened when SelectById: %v", db.Error)
 	}
 	AssertObjEqual(t, newUser, updateUser, "ID", "Username", "Password", "Address", "Age", "Phone", "Score", "Dept", "CreatedAt", "UpdatedAt")
-
 }
 
 func TestUpdate(t *testing.T) {
@@ -304,7 +301,6 @@ func TestSelectPage(t *testing.T) {
 
 	AssertObjEqual(t, resultPage.Records[0], users[0], "ID", "Username", "Password", "Address", "Age", "Phone", "Score", "Dept", "CreatedAt", "UpdatedAt")
 	AssertObjEqual(t, resultPage.Records[1], users[5], "ID", "Username", "Password", "Address", "Age", "Phone", "Score", "Dept", "CreatedAt", "UpdatedAt")
-
 }
 
 func TestSelectPageGeneric2(t *testing.T) {
@@ -332,7 +328,6 @@ func TestSelectPageGeneric2(t *testing.T) {
 
 	AssertObjEqual(t, resultPage.Records[0], users[0], "ID", "Username", "Password")
 	AssertObjEqual(t, resultPage.Records[1], users[5], "ID", "Username", "Password")
-
 }
 
 func TestSelectPageGeneric3(t *testing.T) {
@@ -360,7 +355,6 @@ func TestSelectPageGeneric3(t *testing.T) {
 
 	AssertObjEqual(t, userResult[0], users[0], "Username", "Password")
 	AssertObjEqual(t, userResult[1], users[5], "Username", "Password")
-
 }
 
 func TestSelectCount(t *testing.T) {
@@ -492,7 +486,7 @@ func TestSelectGeneric5(t *testing.T) {
 	gplus.InsertBatch[User](users)
 
 	var ages []int
-	var agesMap = make(map[int]struct{})
+	agesMap := make(map[int]struct{})
 	for _, user := range users {
 		agesMap[user.Age] = struct{}{}
 	}
@@ -517,7 +511,7 @@ func TestSelectGeneric6(t *testing.T) {
 		Dept  string
 		Score int
 	}
-	var userMap = make(map[string]int)
+	userMap := make(map[string]int)
 	for _, user := range users {
 		userMap[user.Dept] += user.Score
 	}
@@ -542,7 +536,7 @@ func TestSelectGeneric7(t *testing.T) {
 	deleteOldData()
 	users := getUsers()
 	gplus.InsertBatch[User](users)
-	var userMap = make(map[string]int)
+	userMap := make(map[string]int)
 	for _, user := range users {
 		userMap[user.Dept] += user.Score
 	}
@@ -611,7 +605,6 @@ func TestPluck(t *testing.T) {
 		for _, item := range usernames {
 			fmt.Printf("pluck list %s\n", item)
 		}
-
 	}
 }
 
@@ -630,7 +623,6 @@ func TestPluckDistinct(t *testing.T) {
 		for _, item := range passwords {
 			fmt.Printf("pluck list %s\n", item)
 		}
-
 	}
 }
 
@@ -657,7 +649,6 @@ func TestReset(t *testing.T) {
 	if count != 1 {
 		t.Errorf("count expects: %v, got %v", 1, count)
 	}
-
 }
 
 func TestQueryBuilder(t *testing.T) {
@@ -707,7 +698,7 @@ func TestBySql(t *testing.T) {
 		Num int
 	}
 
-	records, db := gplus.SelectListBySql[UserPlus]("select * , 1 as num from Users")
+	records, db := gplus.SelectListBySQL[UserPlus]("select * , 1 as num from Users")
 	if db.Error != nil {
 		t.Errorf("errors happened when SelectCount : %v", db.Error)
 	}
@@ -722,7 +713,7 @@ func TestBySql(t *testing.T) {
 		t.Errorf("count expects: %v, got %v", len(records), 0)
 	}
 
-	db = gplus.ExcSql("delete from Users")
+	db = gplus.ExcSQL("delete from Users")
 
 	if db.Error != nil {
 		t.Errorf("errors happened when SelectCount : %v", db.Error)

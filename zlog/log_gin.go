@@ -1,6 +1,7 @@
 package zlog
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -13,14 +14,18 @@ import (
 	"go.uber.org/zap"
 )
 
-// 日志处理
+/* 日志处理 */
+
+// GinLogger 是给gin框架提供访问日志输出的中间件
 func (e *Entry) GinLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
 		query := c.Request.URL.RawQuery
 		c.Next()
+
 		cost := time.Since(start)
+
 		e.Logger.Info(path,
 			zap.Int("status", c.Writer.Status()),
 			zap.String("method", c.Request.Method),
@@ -34,28 +39,42 @@ func (e *Entry) GinLogger() gin.HandlerFunc {
 	}
 }
 
-// 错误处理，也可以不写自己处理错误使用gin写好的错误处理
+// GinRecovery 是给gin框架提供访异常回复时的日志中间件；错误处理，也可以不写自己处理错误使用gin写好的错误处理
 func (e *Entry) GinRecovery(stack bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
 				var brokenPipe bool
+
 				if ne, ok := err.(*net.OpError); ok {
-					if se, ok := ne.Err.(*os.SyscallError); ok {
-						if strings.Contains(strings.ToLower(se.Error()), "broken pipe") || strings.Contains(strings.ToLower(se.Error()), "connection reset by peer") {
+					var se *os.SyscallError
+					if errors.As(ne.Err, &se) {
+						if strings.Contains(strings.ToLower(ne.Err.Error()), "broken pipe") ||
+							strings.Contains(strings.ToLower(ne.Err.Error()), "connection reset by peer") {
 							brokenPipe = true
 						}
 					}
 				}
 
-				httpRequest, _ := httputil.DumpRequest(c.Request, false)
+				httpRequest, httpErr := httputil.DumpRequest(c.Request, false)
+
+				if httpErr != nil {
+					e.Logger.Error("httputil.DumpRequest", zap.Any("error", httpErr))
+				}
+
 				if brokenPipe {
 					e.Logger.Error(c.Request.URL.Path,
 						zap.Any("error", err),
 						zap.String("request", string(httpRequest)),
 					)
-					c.Error(err.(error))
+
+					err := c.Error(err.(error))
+					if err != nil {
+						e.Logger.Error("c.Error", zap.Any("error", httpErr))
+					}
+
 					c.Abort()
+
 					return
 				}
 
@@ -71,6 +90,7 @@ func (e *Entry) GinRecovery(stack bool) gin.HandlerFunc {
 						zap.String("request", string(httpRequest)),
 					)
 				}
+
 				c.AbortWithStatus(http.StatusInternalServerError)
 			}
 		}()

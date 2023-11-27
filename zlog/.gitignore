@@ -2,3 +2,4 @@
 # Log
 *.log
 log/
+coverage

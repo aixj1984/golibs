@@ -1,3 +1,4 @@
+// Package gorm is a wrapper for gorm.
 package gorm
 
 import (
@@ -7,6 +8,8 @@ import (
 	"time"
 
 	viper "github.com/aixj1984/golibs/conf"
+
+	"github.com/aixj1984/golibs/zlog"
 
 	// Import MySQL database driver
 	// _ "github.com/jinzhu/gorm/dialects/mysql"
@@ -33,6 +36,7 @@ const (
 	parentSpanGormCtxKey = "opentracingParentSpanCtx"
 	spanGormKey          = "opentracingSpan"
 	spanDuration         = "opentracingSpanDuration"
+	defaultEngine        = "default"
 )
 
 var (
@@ -45,39 +49,57 @@ var (
 	defaultCharset      = "utf8mb4"
 	defaultPort         = 3306
 	defaultTimeZone     = "Local"
-	gormEngine          *Engine
+	engineMap           map[string]*Engine
 )
 
+// Engine 是gorm的一个封装类
 type Engine struct {
 	gorm *gorm.DB
 }
 
 func init() {
+	engineMap = make(map[string]*Engine)
 	dbCfg, err := viper.GetSubCfg[Config]("gorm")
 	if err != nil {
 		fmt.Printf("unable to get config, %s", err.Error())
+
 		return
-	} else {
-		New(dbCfg)
+	}
+	RegisterDataBase(defaultEngine, dbCfg)
+}
+
+// GetEngine 通过别名，获取DB的实例
+func GetEngine(aliasNames ...string) *Engine {
+	if len(aliasNames) == 0 {
+		return engineMap[defaultEngine]
+	}
+	if _, ok := engineMap[aliasNames[0]]; ok {
+		return engineMap[aliasNames[0]]
+	}
+	return nil
+}
+
+// RegisterDataBase 注册一个别名的DB
+func RegisterDataBase(aliasName string, conf *Config) {
+	if len(engineMap) == 0 && aliasName != defaultEngine {
+		panic("please set defalut db first")
+	}
+
+	db := NewEngine(conf)
+	if db != nil {
+		engineMap[aliasName] = db
 	}
 }
 
-func GetEngine() *Engine {
-	return gormEngine
-}
-
-// New 实例化新的Gorm实例
-func New(conf *Config) *Engine {
-	if gormEngine != nil {
-		return gormEngine
-	}
+// NewEngine 实例化新的Gorm实例
+func NewEngine(conf *Config) *Engine {
 	err := authConfig(conf)
 	if err != nil {
 		panic(err)
 	}
 
 	gormConf := &gorm.Config{}
-	var db *gorm.DB = nil
+	var tempDB *gorm.DB
 	switch conf.Driver {
 	case "mysql":
 		dsn := fmt.Sprintf(mysqlConnStrTmpl,
@@ -96,11 +118,11 @@ func New(conf *Config) *Engine {
 			SkipInitializeWithVersion: false, // 根据版本自动配置
 		}
 
-		db, err = gorm.Open(mysql.New(mysqlConfig), gormConf)
+		tempDB, err = gorm.Open(mysql.New(mysqlConfig), gormConf)
 		if err != nil {
 			panic(err)
 		}
-		break
+
 	case "postgres":
 		dsn := fmt.Sprintf(pgConnStrTmpl,
 			conf.Server,
@@ -113,29 +135,29 @@ func New(conf *Config) *Engine {
 			DriverName: conf.Driver,
 			DSN:        dsn, // DSN data source name
 		}
-		db, err = gorm.Open(postgres.New(pgConfig), gormConf)
+		tempDB, err = gorm.Open(postgres.New(pgConfig), gormConf)
 		if err != nil {
 			panic(err)
 		}
-		break
+
 	case "sqlite":
-		db, err = gorm.Open(sqlite.Open(conf.Database), &gorm.Config{
+		tempDB, err = gorm.Open(sqlite.Open(conf.Database), &gorm.Config{
 			DisableForeignKeyConstraintWhenMigrating: true,
 		})
 		if err != nil {
 			panic("panic code: 155")
 		}
-		break
+
 	default:
 		panic("error db driver")
 	}
 
 	fmt.Println("DB connection successful!")
 
-	gormEngine = &Engine{db}
-	gormEngine.wrapLog()
+	newEngine := &Engine{tempDB}
+	newEngine.WrapLog()
 
-	sqlDB, err := db.DB()
+	sqlDB, err := tempDB.DB()
 	if err != nil {
 		panic(err)
 	}
@@ -144,40 +166,41 @@ func New(conf *Config) *Engine {
 	sqlDB.SetMaxIdleConns(conf.MaxIdleConns)
 	sqlDB.SetMaxOpenConns(conf.MaxOpenConns)
 
-	addGormCallbacks(db)
-	return gormEngine
+	addGormCallbacks(tempDB)
+	return newEngine
 }
 
+// Context 设置db查询是的上下文
 func (db *Engine) Context(ctx context.Context) *gorm.DB {
-	if ctx == nil {
-		fmt.Println("Engine no ctx")
-		return db.gorm
-	}
 	parentSpan := trace.SpanFromContext(ctx)
 	return db.gorm.WithContext(ctx).Set(parentSpanGormKey, parentSpan).Set(parentSpanGormCtxKey, ctx)
 }
 
+// GetDB 获取当前实例中的db对象
 func (db *Engine) GetDB() *gorm.DB {
 	return db.gorm
 }
 
+// SetLogMode 设置日志模式开关
 func (db *Engine) SetLogMode(mode bool) {
 	if !mode {
 		db.gorm.Logger.LogMode(LogLevelSilent)
 	}
 }
 
+// SetLogLevel 设置输出日志的级别
 func (db *Engine) SetLogLevel(level LogLevel) {
 	db.gorm.Logger.LogMode(level)
 }
 
-func Context(ctx context.Context) *gorm.DB {
-	if gormEngine == nil {
+/*
+func Context(ctx context.Context, aliasName string) *gorm.DB {
+	if GetEngine(aliasName) == nil {
 		panic(fmt.Errorf("must init gorm.New"))
 	}
 	parentSpan := trace.SpanFromContext(ctx)
-	return gormEngine.gorm.Set(parentSpanGormKey, parentSpan).Set(parentSpanGormCtxKey, ctx)
-}
+	return GetEngine(aliasName).gorm.Set(parentSpanGormKey, parentSpan).Set(parentSpanGormCtxKey, ctx)
+}*/
 
 func addGormCallbacks(db *gorm.DB) {
 	callbacks := newCallbacks()
@@ -208,7 +231,7 @@ func (c *callbacks) afterRowQuery(scope *gorm.DB)  { c.after(scope) }
 func (c *callbacks) before(db *gorm.DB) {
 	parentSpanCtx, ok := db.Get(parentSpanGormCtxKey)
 	if !ok {
-		//xlog.Infoln("no parentSpanCtx")
+		// xlog.Infoln("no parentSpanCtx")
 		return
 	}
 	db.Set(spanDuration, time.Now())
@@ -217,21 +240,24 @@ func (c *callbacks) before(db *gorm.DB) {
 }
 
 func (c *callbacks) after(scope *gorm.DB) {
-	t, ok := scope.Get(spanDuration)
+	tempTime, ok := scope.Get(spanDuration)
 	if !ok {
-		t = time.Now()
+		tempTime = time.Now()
 	}
 	if span, ok := scope.Get(spanGormKey); ok {
-		vars, _ := json.Marshal(scope.Statement.Vars)
-		span.(trace.Span).SetAttributes(attribute.Key("db.statement").String(string(vars)))
-		span.(trace.Span).SetAttributes(attribute.Key("db.sql").String(scope.Statement.SQL.String()))
-		if scope.Statement.Error != nil {
-			span.(trace.Span).SetAttributes(attribute.Key("db.err").String(scope.Statement.Error.Error()))
+		vars, err := json.Marshal(scope.Statement.Vars)
+		if err != nil {
+			zlog.Errorf("json.Marshal Error : %s", err.Error())
+		} else {
+			span.(trace.Span).SetAttributes(attribute.Key("db.statement").String(string(vars)))
+			span.(trace.Span).SetAttributes(attribute.Key("db.sql").String(scope.Statement.SQL.String()))
+			if scope.Statement.Error != nil {
+				span.(trace.Span).SetAttributes(attribute.Key("db.err").String(scope.Statement.Error.Error()))
+			}
+			span.(trace.Span).SetAttributes(attribute.Key("db.took μs").Int64(time.Since(tempTime.(time.Time)).Microseconds()))
 		}
-		span.(trace.Span).SetAttributes(attribute.Key("db.took μs").Int64(time.Since(t.(time.Time)).Microseconds()))
+
 		defer span.(trace.Span).End()
-	} else {
-		//xlog.Infoln("no span")
 	}
 }
 
@@ -241,19 +267,19 @@ func registerCallbacks(db *gorm.DB, name string, c *callbacks) {
 	gormCallbackName := fmt.Sprintf("gorm:%v", name)
 	switch name {
 	case "create":
-		_ = db.Callback().Create().Before(gormCallbackName).Register(beforeName, c.beforeCreate)
-		_ = db.Callback().Create().After(gormCallbackName).Register(afterName, c.afterCreate)
+		_ = db.Callback().Create().Before(gormCallbackName).Register(beforeName, c.beforeCreate) //nolint:errcheck,staticcheck
+		_ = db.Callback().Create().After(gormCallbackName).Register(afterName, c.afterCreate)    //nolint:errcheck,staticcheck
 	case "query":
-		_ = db.Callback().Query().Before(gormCallbackName).Register(beforeName, c.beforeQuery)
-		_ = db.Callback().Query().After(gormCallbackName).Register(afterName, c.afterQuery)
+		_ = db.Callback().Query().Before(gormCallbackName).Register(beforeName, c.beforeQuery) //nolint:errcheck,staticcheck
+		_ = db.Callback().Query().After(gormCallbackName).Register(afterName, c.afterQuery)    //nolint:errcheck,staticcheck
 	case "update":
-		_ = db.Callback().Update().Before(gormCallbackName).Register(beforeName, c.beforeUpdate)
-		_ = db.Callback().Update().After(gormCallbackName).Register(afterName, c.afterUpdate)
+		_ = db.Callback().Update().Before(gormCallbackName).Register(beforeName, c.beforeUpdate) //nolint:errcheck,staticcheck
+		_ = db.Callback().Update().After(gormCallbackName).Register(afterName, c.afterUpdate)    //nolint:errcheck,staticcheck
 	case "delete":
-		_ = db.Callback().Delete().Before(gormCallbackName).Register(beforeName, c.beforeDelete)
-		_ = db.Callback().Delete().After(gormCallbackName).Register(afterName, c.afterDelete)
+		_ = db.Callback().Delete().Before(gormCallbackName).Register(beforeName, c.beforeDelete) //nolint:errcheck,staticcheck
+		_ = db.Callback().Delete().After(gormCallbackName).Register(afterName, c.afterDelete)    //nolint:errcheck,staticcheck
 	case "row_query":
-		_ = db.Callback().Row().Before(gormCallbackName).Register(beforeName, c.beforeRowQuery)
-		_ = db.Callback().Row().After(gormCallbackName).Register(afterName, c.afterRowQuery)
+		_ = db.Callback().Row().Before(gormCallbackName).Register(beforeName, c.beforeRowQuery) //nolint:errcheck,staticcheck
+		_ = db.Callback().Row().After(gormCallbackName).Register(afterName, c.afterRowQuery)    //nolint:errcheck,staticcheck
 	}
 }
