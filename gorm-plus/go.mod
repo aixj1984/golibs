@@ -3,14 +3,13 @@ module github.com/aixj1984/golibs/gorm-plus
 go 1.21.1
 
 require (
-	github.com/aixj1984/golibs/conf v0.0.0-20231109060820-bcacf251fd0d
-	github.com/aixj1984/golibs/gorm v0.0.0-20231113073444-8011a7d903c6
-	github.com/glebarez/sqlite v1.10.0
+	github.com/aixj1984/golibs/gorm v0.0.0-20231127093650-beaf7c2e30bb
 	gorm.io/gorm v1.25.5
 )
 
 require (
-	github.com/aixj1984/golibs/zlog v0.0.0-20231113025811-c055dfa30d43 // indirect
+	github.com/aixj1984/golibs/conf v0.0.0-20231127093310-ccbfee83b664 // indirect
+	github.com/aixj1984/golibs/zlog v0.0.0-20231127093547-006208d93cad // indirect
 	github.com/bytedance/sonic v1.10.2 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20230717121745-296ad89f973d // indirect
 	github.com/chenzhuoyu/iasm v0.9.1 // indirect
@@ -20,6 +19,7 @@ require (
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/gin-gonic/gin v1.9.1 // indirect
 	github.com/glebarez/go-sqlite v1.21.2 // indirect
+	github.com/glebarez/sqlite v1.10.0 // indirect
 	github.com/go-logr/logr v1.3.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
