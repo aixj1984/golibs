@@ -14,17 +14,18 @@ type Options struct {
 	MinLength uint8
 }
 
-type ShortUUID struct {
+// UnionUUID 统一的UUID生成入口
+type UnionUUID struct {
 	alphabet  string
 	minLength uint8
 }
 
-func New() *ShortUUID {
-	return &ShortUUID{}
+func New() *UnionUUID {
+	return &UnionUUID{}
 }
 
 // GenV4 产生一个36位的唯一字符串
-func (s *ShortUUID) GenV4() (string, error) {
+func (s *UnionUUID) GenV4() (string, error) {
 	u, err := uuid.NewV4()
 	if err != nil {
 		return "", err
@@ -33,7 +34,7 @@ func (s *ShortUUID) GenV4() (string, error) {
 }
 
 // GenV4 产生一个16位的唯一字符串
-func (s *ShortUUID) GenShort() (string, error) {
+func (s *UnionUUID) GenShort() (string, error) {
 	u, err := uuid.NewV4()
 	if err != nil {
 		return "", err
