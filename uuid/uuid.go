@@ -3,10 +3,13 @@ package uuid
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/gofrs/uuid/v5"
 
 	"github.com/sqids/sqids-go"
+
+	"github.com/lithammer/shortuuid/v4"
 )
 
 type Options struct {
@@ -33,8 +36,8 @@ func (s *UnionUUID) GenV4() (string, error) {
 	return u.String(), nil
 }
 
-// GenV4 产生一个16位的唯一字符串
-func (s *UnionUUID) GenShort() (string, error) {
+// GenShort16 产生一个16位的唯一字符串
+func (s *UnionUUID) GenShort16() (string, error) {
 	u, err := uuid.NewV4()
 	if err != nil {
 		return "", err
@@ -69,7 +72,11 @@ func (s *UnionUUID) GenShort() (string, error) {
 	}
 
 	nid, _ := sid.Encode(newArray)
-	// fmt.Printf("nid : %s\n", nid)
-
 	return nid[:16], nil
+}
+
+// GenShort24 以UUID为基础，再对字符进行压缩
+func (s *UnionUUID) GenShort24() string {
+	u := shortuuid.New()
+	return fmt.Sprintf("%024s", u)
 }
