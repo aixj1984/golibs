@@ -63,6 +63,7 @@ func (s *UnionUUID) GenShort16() (string, error) {
 		// 累加所有的byte值
 		sum += value
 	}
+
 	newArray[4] = sum
 
 	sid, err := sqids.New(sqids.Options{

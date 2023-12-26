@@ -78,7 +78,7 @@ func TestShort16WithAlphabet_10000(t *testing.T) {
 	start := time.Now()
 
 	uid := NewWithAlphabet("0123456789")
-	for index := 1; index < 10000; index++ {
+	for index := 1; index < 100000; index++ {
 
 		id, err := uid.GenShort16()
 		if err != nil {
@@ -92,7 +92,7 @@ func TestShort16WithAlphabet_10000(t *testing.T) {
 
 	start = time.Now()
 
-	for index := 1; index < 10000; index++ {
+	for index := 1; index < 100000; index++ {
 		id, err := uid.GenShort16()
 		if err != nil {
 			t.Error(err.Error())
