@@ -12,11 +12,6 @@ import (
 	"github.com/lithammer/shortuuid/v4"
 )
 
-type Options struct {
-	Alphabet  string
-	MinLength uint8
-}
-
 // UnionUUID 统一的UUID生成入口
 type UnionUUID struct {
 	alphabet  string
@@ -24,7 +19,16 @@ type UnionUUID struct {
 }
 
 func New() *UnionUUID {
-	return &UnionUUID{}
+	return &UnionUUID{
+		alphabet:  "",
+		minLength: 16,
+	}
+}
+
+func NewWithAlphabet(alphabet string) *UnionUUID {
+	return &UnionUUID{
+		alphabet: alphabet,
+	}
 }
 
 // GenV4 产生一个36位的唯一字符串
@@ -36,7 +40,7 @@ func (s *UnionUUID) GenV4() (string, error) {
 	return u.String(), nil
 }
 
-// GenShort16 产生一个16位的唯一字符串
+// GenShort16 产生一个16位的唯一字符串,通过测试，会重复,需要考虑去重，V4的重复概率低
 func (s *UnionUUID) GenShort16() (string, error) {
 	u, err := uuid.NewV4()
 	if err != nil {
@@ -61,11 +65,9 @@ func (s *UnionUUID) GenShort16() (string, error) {
 	}
 	newArray[4] = sum
 
-	// fmt.Println("New array:", newArray)
-
 	sid, err := sqids.New(sqids.Options{
-		MinLength: 16,
-		// Alphabet:  "FxnXM1kBN6cuhsAvjW3Co7l2RePyY8DwaU04Tzt9fHQrqSVKdpimLGIJOgb5ZE",
+		MinLength: s.minLength,
+		Alphabet:  s.alphabet,
 	})
 	if err != nil {
 		return "", err
@@ -75,8 +77,44 @@ func (s *UnionUUID) GenShort16() (string, error) {
 	return nid[:16], nil
 }
 
-// GenShort24 以UUID为基础，再对字符进行压缩
+// GenShort16Array 生成指定长度不重复的数组，只能保障本次不重复
+func (s *UnionUUID) GenShort16Array(length int) ([]string, error) {
+	if length == 0 || length > 100000 {
+		return nil, errors.New("len is to large")
+	}
+
+	idMap := make(map[string]bool)
+
+	for len(idMap) < length {
+
+		id, err := s.GenShort16()
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := idMap[id]; !ok {
+			idMap[id] = true
+		}
+	}
+
+	keys := make([]string, 0, len(idMap))
+	for k := range idMap {
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+// GenShort24 以UUID为基础，再对字符进行压缩，该结果可以解密
 func (s *UnionUUID) GenShort24() string {
 	u := shortuuid.New()
 	return fmt.Sprintf("%024s", u)
+}
+
+func (s *UnionUUID) GenShort24With() string {
+	u := shortuuid.NewWithAlphabet("0123456789")
+	return fmt.Sprintf("%024s", u)
+}
+
+func isInMap(m map[string]bool, target string) bool {
+	_, ok := m[target]
+	return ok
 }

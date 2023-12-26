@@ -58,9 +58,12 @@ func TestLog(t *testing.T) {
 	Warnf("format log : %d", 12)
 	Errorf("format log : %d", 12)
 
+	Logger().WithError(errors.ErrUnsupported)
+
 	DebugO("object log ", time.Now())
 	InfoO("object log ", time.Now())
 	WarnO("object log ", time.Now())
+	Logger().WithError(nil)
 	ErrorO("object log ", time.Now())
 }
 
