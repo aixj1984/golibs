@@ -4,7 +4,9 @@ package uuid
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
+	"github.com/bwmarrin/snowflake"
 	"github.com/gofrs/uuid/v5"
 
 	"github.com/sqids/sqids-go"
@@ -16,18 +18,24 @@ import (
 type UnionUUID struct {
 	alphabet  string
 	minLength uint8
+	snowNode  *snowflake.Node
 }
 
 func New() *UnionUUID {
+	node, _ := snowflake.NewNode(1)
 	return &UnionUUID{
 		alphabet:  "",
 		minLength: 16,
+		snowNode:  node,
 	}
 }
 
 func NewWithAlphabet(alphabet string) *UnionUUID {
+	node, _ := snowflake.NewNode(1)
 	return &UnionUUID{
-		alphabet: alphabet,
+		alphabet:  alphabet,
+		minLength: 16,
+		snowNode:  node,
 	}
 }
 
@@ -113,6 +121,68 @@ func (s *UnionUUID) GenShort24() string {
 func (s *UnionUUID) GenShort24With() string {
 	u := shortuuid.NewWithAlphabet("0123456789")
 	return fmt.Sprintf("%024s", u)
+}
+
+func (s *UnionUUID) GenSnowflake16() (string, error) {
+	var nodeIDMask int64 = 1023 << 12 // mask to get Node ID
+	var sequenceIDMask int64 = 4095   // mask to get sequence ID
+
+	id := s.snowNode.Generate()
+	// base2 := id.Base2()
+
+	val := id.Int64()
+	// return id.String(), nil
+
+	nodeIDPart := val &^ nodeIDMask        // remove Node ID only
+	sequenceIDPart := val & sequenceIDMask // get sequence ID part
+
+	// newNodeIDPart := nodeIDPart >> 10 // shift Node ID part right by 10 bits
+	// 考虑到后面的序列号不会那么大，12位太多，减少到整体48位，需要去掉3位
+	newNodeIDPart := nodeIDPart >> 13 // shift Node ID part right by 10 bits
+
+	newVal := newNodeIDPart | sequenceIDPart // combine the two parts
+
+	base2 := strconv.FormatInt(newVal, 2) // convert to binary
+
+	lenBase2 := len(base2)
+	// fmt.Printf("bit length : %d\n", lenBase2)
+	// 每6个为一组，共8个数值
+	size := 6
+	if lenBase2%size != 0 {
+		// 不足size位的补0
+		for i := 0; i < size-lenBase2%size; i++ {
+			base2 = base2 + "0"
+		}
+	}
+
+	var result []uint64
+	for i := 0; i < len(base2); i += size {
+		num, err := strconv.ParseInt(base2[i:i+size], 2, 32)
+		if err != nil {
+			fmt.Println(err)
+			return "", err
+		}
+		result = append(result, uint64(num))
+	}
+
+	sid, err := sqids.New(sqids.Options{
+		MinLength: s.minLength,
+		Alphabet:  s.alphabet,
+	})
+	if err != nil {
+		return "", err
+	}
+	nid, err := sid.Encode(result)
+	if err != nil {
+		return "", err
+	}
+
+	if len(nid) < 16 {
+		// fmt.Println("nid is " + fmt.Sprintf("%016s", nid))
+		return fmt.Sprintf("%016s", nid), nil
+	}
+	// 前面几位基本一样，所以很容易重，这里直接取后16位
+	return nid[len(nid)-16:], nil
 }
 
 func isInMap(m map[string]bool, target string) bool {
