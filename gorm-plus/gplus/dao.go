@@ -427,7 +427,7 @@ func buildSQLAndArgs[T any](expressions []any, sqlBuilder *strings.Builder, quer
 				sqlBuilder.WriteString(segment.value.(string) + " ") //nolint
 				continue
 			}
-			if segment.value != "" {
+			if segment.value != nil { // 条件可以给空字符串
 				sqlBuilder.WriteString("? ") //nolint
 				queryArgs = append(queryArgs, segment.value)
 			}
