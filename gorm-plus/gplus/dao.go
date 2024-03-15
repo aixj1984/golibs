@@ -216,18 +216,20 @@ func SelectByIdGeneric[T any, R any](id any, opts ...OptionFunc) (*R, *gorm.DB) 
 }
 
 // Pluck 取某列值，不去重
-func Pluck[T any, R any](column string, q *QueryCond[T], opts ...OptionFunc) ([]R, *gorm.DB) {
+func Pluck[T any, R any](column any, q *QueryCond[T], opts ...OptionFunc) ([]R, *gorm.DB) {
 	var results []R
+	columnName := getColumnName(column)
 	resultDb := buildCondition(q, opts...)
-	resultDb.Pluck(column, &results)
+	resultDb.Pluck(columnName, &results)
 	return results, resultDb
 }
 
 // PluckDistinct 取某列值，去重
-func PluckDistinct[T any, R any](column string, q *QueryCond[T], opts ...OptionFunc) ([]R, *gorm.DB) {
+func PluckDistinct[T any, R any](column any, q *QueryCond[T], opts ...OptionFunc) ([]R, *gorm.DB) {
 	var results []R
 	resultDb := buildCondition(q, opts...)
-	resultDb.Distinct(column).Pluck(column, &results)
+	columnName := getColumnName(column)
+	resultDb.Distinct(columnName).Pluck(columnName, &results)
 	return results, resultDb
 }
 
