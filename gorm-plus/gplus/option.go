@@ -64,3 +64,10 @@ func IgnoreTotal() OptionFunc {
 		o.IgnoreTotal = true
 	}
 }
+
+// Table 指定表
+func Table(table string) OptionFunc {
+	return func(o *Option) {
+		o.TableName = table
+	}
+}

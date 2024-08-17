@@ -77,6 +77,12 @@ func (dao Dao[T]) NewQuery() (*QueryCond[T], *T) {
 
 // NewPage 构造一个分页查询条件
 func NewPage[T any](current, size int) *Page[T] {
+	if current <= 0 {
+		current = 1
+	}
+	if size <= 0 {
+		size = 10
+	}
 	return &Page[T]{Current: current, Size: size}
 }
 
@@ -282,6 +288,7 @@ func SelectPage[T any](page *Page[T], q *QueryCond[T], opts ...OptionFunc) (*Pag
 	}
 
 	resultDb := buildCondition(q, opts...)
+
 	var results []*T
 	resultDb.Scopes(paginate(page)).Find(&results)
 	page.Records = results
@@ -454,6 +461,10 @@ func getDb(opts ...OptionFunc) *gorm.DB {
 
 	if option.Db != nil {
 		db = option.Db.Clauses()
+	}
+
+	if len(option.TableName) > 0 {
+		db = db.Table(option.TableName)
 	}
 
 	// 设置需要忽略的字段
