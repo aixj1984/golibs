@@ -25,6 +25,7 @@ type Option struct {
 	Selects     []any
 	Omits       []any
 	IgnoreTotal bool
+	TableName   string
 }
 
 // OptionFunc 是 option指令的函数
