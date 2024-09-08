@@ -124,6 +124,15 @@ func DeleteById[T any](id any, opts ...OptionFunc) *gorm.DB {
 	return resultDb
 }
 
+// DeleteByIdx 根据 IDX 删除记录
+func DeleteByIdx[T any](idx any, opts ...OptionFunc) *gorm.DB {
+	db := getDb(opts...)
+	var entity T
+	resultDb := db.Where("idx", idx).Delete(&entity)
+	return resultDb
+}
+
+
 // DeleteByIds 根据 ID 批量删除记录
 func DeleteByIds[T any](ids any, opts ...OptionFunc) *gorm.DB {
 	q, _ := NewQuery[T]()
@@ -181,6 +190,15 @@ func Update[T any](q *QueryCond[T], opts ...OptionFunc) *gorm.DB {
 func SelectById[T any](id any, opts ...OptionFunc) (*T, *gorm.DB) {
 	q, _ := NewQuery[T]()
 	q.Eq(getPkColumnName[T](), id)
+	var entity T
+	resultDb := buildCondition(q, opts...)
+	return &entity, resultDb.Take(&entity)
+}
+
+// SelectByIdx 根据 IDX 查询单条记录
+func SelectByIdx[T any](idx any, opts ...OptionFunc) (*T, *gorm.DB) {
+	q, _ := NewQuery[T]()
+	q.Eq("idx", idx)
 	var entity T
 	resultDb := buildCondition(q, opts...)
 	return &entity, resultDb.Take(&entity)
