@@ -14,6 +14,7 @@ import (
 	// Import MySQL database driver
 	// _ "github.com/jinzhu/gorm/dialects/mysql"
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/clickhouse"
 
 	// Import PostgreSQL database driver
 	// _ "github.com/jinzhu/gorm/dialects/postgres"
@@ -43,6 +44,7 @@ var (
 	defaultDatabase     = "mysql"
 	mysqlConnStrTmpl    = "%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=True&loc=%s"
 	pgConnStrTmpl       = "host=%s port=%s user=%s dbname=%s password=%s TimeZone=%s"
+	ckConnStrTmpl       = "clickhouse://%s:%s@%s:%d/%s?dial_timeout=30s&max_execution_time=300"
 	defaultMaxOpenConns = 200
 	defaultMaxIdleConns = 60
 	defaultMaxLeftTime  = 300 * time.Second
@@ -146,6 +148,18 @@ func NewEngine(conf *Config) *Engine {
 		})
 		if err != nil {
 			panic("panic code: 155")
+		}
+
+	case "clickhouse":
+		dsn := fmt.Sprintf(ckConnStrTmpl,
+			conf.User,
+			conf.Password,
+			conf.Server,
+			conf.Port,
+			conf.Database)
+		tempDB, err = gorm.Open(clickhouse.Open(dsn), &gorm.Config{})
+		if err != nil {
+			panic(err)
 		}
 
 	default:
