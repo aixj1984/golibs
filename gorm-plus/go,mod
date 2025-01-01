@@ -8,8 +8,6 @@ require (
 )
 
 require (
-	g3.gua.com/golibs/conf v0.0.0-20231128124204-8036a2c7a1d1 // indirect
-	g3.gua.com/golibs/zlog v0.0.0-20231128125035-df850894ea10 // indirect
 	github.com/bytedance/sonic v1.9.1 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
