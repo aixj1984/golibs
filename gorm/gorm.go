@@ -13,8 +13,8 @@ import (
 
 	// Import MySQL database driver
 	// _ "github.com/jinzhu/gorm/dialects/mysql"
-	"gorm.io/driver/mysql"
 	"gorm.io/driver/clickhouse"
+	"gorm.io/driver/mysql"
 
 	// Import PostgreSQL database driver
 	// _ "github.com/jinzhu/gorm/dialects/postgres"
@@ -68,6 +68,11 @@ func init() {
 		return
 	}
 	RegisterDataBase(defaultEngine, dbCfg)
+}
+
+// Open 原始接口透传
+func Open(dialector gorm.Dialector, opts ...gorm.Option) (db *DB, err error) {
+	return gorm.Open(dialector, opts...)
 }
 
 // GetEngine 通过别名，获取DB的实例
@@ -142,14 +147,6 @@ func NewEngine(conf *Config) *Engine {
 			panic(err)
 		}
 
-	case "sqlite":
-		tempDB, err = gorm.Open(sqlite.Open(conf.Database), &gorm.Config{
-			DisableForeignKeyConstraintWhenMigrating: true,
-		})
-		if err != nil {
-			panic("panic code: 155")
-		}
-
 	case "clickhouse":
 		dsn := fmt.Sprintf(ckConnStrTmpl,
 			conf.User,
@@ -160,6 +157,14 @@ func NewEngine(conf *Config) *Engine {
 		tempDB, err = gorm.Open(clickhouse.Open(dsn), &gorm.Config{})
 		if err != nil {
 			panic(err)
+		}
+
+	case "sqlite":
+		tempDB, err = gorm.Open(sqlite.Open(conf.Database), &gorm.Config{
+			DisableForeignKeyConstraintWhenMigrating: true,
+		})
+		if err != nil {
+			panic("panic code: 155")
 		}
 
 	default:

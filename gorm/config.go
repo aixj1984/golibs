@@ -30,12 +30,12 @@ func authConfig(conf *Config) (err error) {
 	if conf.Port == 0 {
 		conf.Port = defaultPort
 	}
-	if len(conf.User) == 0 || len(conf.Password) == 0 {
+	if conf.Driver != "sqlite" && (len(conf.User) == 0 || len(conf.Password) == 0) {
 		err = errors.New("User or  Password is empty")
 		return
 	}
 
-	if len(conf.Server) == 0 {
+	if conf.Driver != "sqlite" && len(conf.Server) == 0 {
 		err = errors.New("server addr is empty")
 		return
 	}

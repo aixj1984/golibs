@@ -127,36 +127,64 @@ func Debug(msg string, fields Fields) {
 
 // DebugO 输出debug级别的任意对象到日志
 func DebugO(msg string, object interface{}) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, object)
+		return
+	}
 	mLog.Debug(msg, object)
 }
 
 // Debugf 输出debug级别的format日志
 func Debugf(format string, args ...interface{}) {
+	if mLog == nil {
+		fmt.Printf(format+"\n", args...)
+		return
+	}
 	mLog.Debug("", Fields{"content": fmt.Sprintf(format, args...)})
 }
 
 // Info 输出info级别的日志
 func Info(msg string, fields Fields) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, fields)
+		return
+	}
 	mLog.Info(msg, fields)
 }
 
 // InfoO 输出info级别的任意对象到日志
 func InfoO(msg string, object interface{}) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, object)
+		return
+	}
 	mLog.Info(msg, object)
 }
 
 // Infof 输出info级别的format日志
 func Infof(format string, args ...interface{}) {
+	if mLog == nil {
+		fmt.Printf(format+"\n", args...)
+		return
+	}
 	mLog.Info("", Fields{"content": fmt.Sprintf(format, args...)})
 }
 
 // Warn 输出warn级别的日志
 func Warn(msg string, fields Fields) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, fields)
+		return
+	}
 	mLog.Warn(msg, fields)
 }
 
 // WarnO 输出warn级别的任意对象到日志
 func WarnO(msg string, object interface{}) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, object)
+		return
+	}
 	mLog.Warn(msg, object)
 }
 
@@ -167,60 +195,108 @@ func Warnf(format string, args ...interface{}) {
 
 // Error 输出error级别的日志
 func Error(msg string, fields Fields) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, fields)
+		return
+	}
 	mLog.Error(msg, fields)
 }
 
 // ErrorO 输出error级别的任意对象到日志
 func ErrorO(msg string, object interface{}) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, object)
+		return
+	}
 	mLog.Error(msg, object)
 }
 
 // Errorf 输出error级别的format日志
 func Errorf(format string, args ...interface{}) {
+	if mLog == nil {
+		fmt.Printf(format+"\n", args...)
+		return
+	}
 	mLog.Error("", Fields{"content": fmt.Sprintf(format, args...)})
 }
 
 // DPanic 输出dpanic级别的日志,同时进程退出
 func DPanic(msg string, fields Fields) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, fields)
+		return
+	}
 	mLog.DPanic(msg, fields)
 }
 
 // DPanicO 输出dpanic级别的任意对象到日志,同时进程退出
 func DPanicO(msg string, object interface{}) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, object)
+		return
+	}
 	mLog.DPanic(msg, object)
 }
 
 // DPanicf 输出dpanic级别的format日志,同时进程退出
 func DPanicf(format string, args ...interface{}) {
+	if mLog == nil {
+		fmt.Printf(format+"\n", args...)
+		return
+	}
 	mLog.DPanic("", Fields{"content": fmt.Sprintf(format, args...)})
 }
 
 // Panic 输出fatal级别的日志,同时进程退出
 func Panic(msg string, fields Fields) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, fields)
+		return
+	}
 	mLog.Panic(msg, fields)
 }
 
 // PanicO 输出panic级别的任意对象到日志,同时进程退出
 func PanicO(msg string, object interface{}) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, object)
+		return
+	}
 	mLog.Panic(msg, object)
 }
 
 // Panicf 输出panic级别的format日志,同时进程退出
 func Panicf(format string, args ...interface{}) {
+	if mLog == nil {
+		fmt.Printf(format+"\n", args...)
+		return
+	}
 	mLog.Panic("", Fields{"content": fmt.Sprintf(format, args...)})
 }
 
 // Fatal 输出fatal级别的日志,同时进程退出
 func Fatal(msg string, fields Fields) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, fields)
+		return
+	}
 	mLog.Fatal(msg, fields)
 }
 
 // FatalO 输出fatal级别的任意对象到日志,同时进程退出
 func FatalO(msg string, object interface{}) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, object)
+		return
+	}
 	mLog.Fatal(msg, object)
 }
 
 // Fatalf 输出fatal级别的format日志,同时进程退出
 func Fatalf(format string, args ...interface{}) {
+	if mLog == nil {
+		fmt.Printf(format+"\n", args...)
+		return
+	}
 	mLog.Fatal("", Fields{"content": fmt.Sprintf(format, args...)})
 }
