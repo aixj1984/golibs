@@ -9,18 +9,18 @@ import (
 
 // Config 是gorm的配置文件字段定义
 type Config struct {
-	Alias        string        `mapstructure:"alias" json:"alias" yaml:"alias"`
-	Driver       string        `mapstructure:"driver" json:"driver" yaml:"driver"`
-	Server       string        `mapstructure:"server" json:"server" yaml:"server"`
-	Port         int           `mapstructure:"port" json:"port" yaml:"port"`
-	Database     string        `mapstructure:"database" json:"database" yaml:"database"`
-	User         string        `mapstructure:"user" json:"user" yaml:"user"`
-	Password     string        `mapstructure:"password" json:"password" yaml:"password"`
-	MaxIdleConns int           `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"`
-	MaxOpenConns int           `mapstructure:"maxOpenConns" json:"maxOpenConns" yaml:"maxOpenConns"`
-	Charset      string        `mapstructure:"charset" json:"charset" yaml:"charset"`
-	TimeZone     string        `mapstructure:"timezone" json:"timezone" yaml:"timezone"`
-	MaxLeftTime  time.Duration `mapstructure:"maxLeftTime" json:"maxLeftTime" yaml:"maxLeftTime"`
+	Alias        string        `mapstructure:"alias" json:"alias" yaml:"alias" comment:"数据库别名"`
+	Driver       string        `mapstructure:"driver" json:"driver" yaml:"driver" comment:"数据库驱动"`
+	Server       string        `mapstructure:"server" json:"server" yaml:"server" comment:"数据库服务器地址"`
+	Port         int           `mapstructure:"port" json:"port" yaml:"port" comment:"数据库端口"`
+	Database     string        `mapstructure:"database" json:"database" yaml:"database" comment:"数据库名称"`
+	User         string        `mapstructure:"user" json:"user" yaml:"user" comment:"数据库用户名"`
+	Password     string        `mapstructure:"password" json:"password" yaml:"password" comment:"数据库密码"`
+	MaxIdleConns int           `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns" comment:"最大空闲连接数"`
+	MaxOpenConns int           `mapstructure:"maxOpenConns" json:"maxOpenConns" yaml:"maxOpenConns" comment:"最大打开连接数"`
+	Charset      string        `mapstructure:"charset" json:"charset" yaml:"charset" comment:"字符集"`
+	TimeZone     string        `mapstructure:"timezone" json:"timezone" yaml:"timezone" comment:"时区"`
+	MaxLeftTime  time.Duration `mapstructure:"maxLeftTime" json:"maxLeftTime" yaml:"maxLeftTime" comment:"最大连接时间 0h20m30s"`
 }
 
 func authConfig(conf *Config) (err error) {

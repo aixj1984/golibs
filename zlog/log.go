@@ -13,14 +13,14 @@ import (
 
 // Config 是log文件的参数配置
 type Config struct {
-	LogPath    string `mapstructure:"logPath" yaml:"logPath" json:"logPath"`
-	AppName    string `mapstructure:"appName" yaml:"appName" json:"appName"`
-	Debug      bool   `mapstructure:"debug" yaml:"debug" json:"debug"`
-	Level      int8   `mapstructure:"level" yaml:"level" json:"level"`
-	MaxSize    int    `mapstructure:"maxSize" yaml:"maxSize" json:"maxSize"`
-	MaxAge     int    `mapstructure:"maxAge" yaml:"maxAge" json:"maxAge"`
-	MaxBackups int    `mapstructure:"maxBackups" yaml:"maxBackups" json:"maxBackups"`
-	Compress   bool   `mapstructure:"compress" yaml:"compress" json:"compress"`
+	LogPath    string `mapstructure:"logPath" yaml:"logPath" json:"logPath" comment:"日志文件路径"`
+	AppName    string `mapstructure:"appName" yaml:"appName" json:"appName" comment:"应用名称"`
+	Debug      bool   `mapstructure:"debug" yaml:"debug" json:"debug" comment:"是否开启调试模式"`
+	Level      int8   `mapstructure:"level" yaml:"level" json:"level" comment:"日志级别"`
+	MaxSize    int    `mapstructure:"maxSize" yaml:"maxSize" json:"maxSize" comment:"每个日志文件保存的大小 单位:M"`
+	MaxAge     int    `mapstructure:"maxAge" yaml:"maxAge" json:"maxAge" comment:"文件最多保存多少天"`
+	MaxBackups int    `mapstructure:"maxBackups" yaml:"maxBackups" json:"maxBackups" comment:"日志文件最多保存多少个备份"`
+	Compress   bool   `mapstructure:"compress" yaml:"compress" json:"compress" comment:"是否压缩"`
 }
 
 var (
