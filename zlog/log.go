@@ -13,14 +13,14 @@ import (
 
 // Config 是log文件的参数配置
 type Config struct {
-	LogPath    string `mapstructure:"logPath"`
-	AppName    string `mapstructure:"appName"`
-	Debug      bool   `mapstructure:"debug"`
-	Level      int8   `mapstructure:"level"`
-	MaxSize    int    `mapstructure:"maxSize"`
-	MaxAge     int    `mapstructure:"maxAge"`
-	MaxBackups int    `mapstructure:"maxBackups"`
-	Compress   bool   `mapstructure:"compress"`
+	LogPath    string `mapstructure:"logPath" yaml:"logPath" json:"logPath"`
+	AppName    string `mapstructure:"appName" yaml:"appName" json:"appName"`
+	Debug      bool   `mapstructure:"debug" yaml:"debug" json:"debug"`
+	Level      int8   `mapstructure:"level" yaml:"level" json:"level"`
+	MaxSize    int    `mapstructure:"maxSize" yaml:"maxSize" json:"maxSize"`
+	MaxAge     int    `mapstructure:"maxAge" yaml:"maxAge" json:"maxAge"`
+	MaxBackups int    `mapstructure:"maxBackups" yaml:"maxBackups" json:"maxBackups"`
+	Compress   bool   `mapstructure:"compress" yaml:"compress" json:"compress"`
 }
 
 var (

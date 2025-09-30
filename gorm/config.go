@@ -9,18 +9,18 @@ import (
 
 // Config 是gorm的配置文件字段定义
 type Config struct {
-	Alias        string        `mapstructure:"alias" json:"alias"`
-	Driver       string        `mapstructure:"driver" json:"driver"`
-	Server       string        `mapstructure:"server" json:"server"`
-	Port         int           `mapstructure:"port" json:"port"`
-	Database     string        `mapstructure:"database" json:"database"`
-	User         string        `mapstructure:"user" json:"user"`
-	Password     string        `mapstructure:"password" json:"password"`
-	MaxIdleConns int           `mapstructure:"maxIdleConns" json:"maxIdleConns"`
-	MaxOpenConns int           `mapstructure:"maxOpenConns" json:"maxOpenConns"`
-	Charset      string        `mapstructure:"charset" json:"charset"`
-	TimeZone     string        `mapstructure:"timezone" json:"timezone"`
-	MaxLeftTime  time.Duration `mapstructure:"maxLeftTime" json:"maxLeftTime"`
+	Alias        string        `mapstructure:"alias" json:"alias" yaml:"alias"`
+	Driver       string        `mapstructure:"driver" json:"driver" yaml:"driver"`
+	Server       string        `mapstructure:"server" json:"server" yaml:"server"`
+	Port         int           `mapstructure:"port" json:"port" yaml:"port"`
+	Database     string        `mapstructure:"database" json:"database" yaml:"database"`
+	User         string        `mapstructure:"user" json:"user" yaml:"user"`
+	Password     string        `mapstructure:"password" json:"password" yaml:"password"`
+	MaxIdleConns int           `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"`
+	MaxOpenConns int           `mapstructure:"maxOpenConns" json:"maxOpenConns" yaml:"maxOpenConns"`
+	Charset      string        `mapstructure:"charset" json:"charset" yaml:"charset"`
+	TimeZone     string        `mapstructure:"timezone" json:"timezone" yaml:"timezone"`
+	MaxLeftTime  time.Duration `mapstructure:"maxLeftTime" json:"maxLeftTime" yaml:"maxLeftTime"`
 }
 
 func authConfig(conf *Config) (err error) {
