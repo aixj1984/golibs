@@ -39,6 +39,11 @@ func init() {
 
 // InitLogger 通过传入的config，来初始化日志对象
 func InitLogger(config *Config) {
+	if config == nil {
+		fmt.Printf("zlog.InitLogger: config is nil\n")
+		return
+	}
+
 	if config.MaxSize < 1 {
 		config.MaxSize = 1
 	}
@@ -122,6 +127,10 @@ func GetConfig() *Config {
 
 // Debug 输出debug级别的日志
 func Debug(msg string, fields Fields) {
+	if mLog == nil {
+		fmt.Printf("%s : %+v\n", msg, fields)
+		return
+	}
 	mLog.Debug(msg, fields)
 }
 
@@ -190,6 +199,10 @@ func WarnO(msg string, object interface{}) {
 
 // Warnf 输出warn级别的format日志
 func Warnf(format string, args ...interface{}) {
+	if mLog == nil {
+		fmt.Printf(format+"\n", args...)
+		return
+	}
 	mLog.Warn("", Fields{"content": fmt.Sprintf(format, args...)})
 }
 
