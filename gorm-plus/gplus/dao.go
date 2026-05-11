@@ -19,20 +19,19 @@ package gplus
 
 import (
 	"database/sql"
-	"errors"
-	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aixj1984/golibs/gorm"
 	"github.com/aixj1984/golibs/gorm-plus/constants"
 	"gorm.io/gorm/schema"
-	"gorm.io/gorm/utils"
 )
 
 var (
 	globalDb         *gorm.DB
 	defaultBatchSize = 1000
+	pkSchemaCache    sync.Map // passed to schema.Parse for primary key resolution
 )
 
 func init() {
@@ -43,7 +42,7 @@ func init() {
 	globalDb = db.GetDB()
 }
 
-// SetDB 给封装的plus设置DB对象
+// SetDB sets the default *gorm.DB used by gplus helpers when no gplus.Db option is passed.
 func SetDB(db *gorm.DB) {
 	if db == nil {
 		return
@@ -51,13 +50,23 @@ func SetDB(db *gorm.DB) {
 	globalDb = db
 }
 
-// SelectDB 根据别名，获取DB对象
+// Init is an alias for [SetDB], for backward compatibility with older documentation.
+func Init(db *gorm.DB) {
+	SetDB(db)
+}
+
+// SelectDB selects an engine by alias, sets it as the global default DB, and returns it.
+// Panics if no engine is registered for the given alias.
 func SelectDB(aliasNames ...string) *gorm.DB {
-	globalDb = gorm.GetEngine(aliasNames...).GetDB()
+	eng := gorm.GetEngine(aliasNames...)
+	if eng == nil {
+		panic("gplus: SelectDB: no gorm engine registered for this alias; register the database first")
+	}
+	globalDb = eng.GetDB()
 	return globalDb
 }
 
-// Page 分页查询的返货结果
+// Page 分页查询的返回结果
 type Page[T any] struct {
 	Current    int   `json:"page"`     // 页码
 	Size       int   `json:"pageSize"` // 每页大小
@@ -97,6 +106,7 @@ func Insert[T any](entity *T, opts ...OptionFunc) *gorm.DB {
 func InsertBatch[T any](entities []*T, opts ...OptionFunc) *gorm.DB {
 	db := getDb(opts...)
 	if len(entities) == 0 {
+		_ = db.AddError(ErrEmptyBatch)
 		return db
 	}
 	resultDb := db.CreateInBatches(entities, defaultBatchSize)
@@ -107,6 +117,7 @@ func InsertBatch[T any](entities []*T, opts ...OptionFunc) *gorm.DB {
 func InsertBatchSize[T any](entities []*T, batchSize int, opts ...OptionFunc) *gorm.DB {
 	db := getDb(opts...)
 	if len(entities) == 0 {
+		_ = db.AddError(ErrEmptyBatch)
 		return db
 	}
 	if batchSize <= 0 {
@@ -257,7 +268,8 @@ func PluckDistinct[T any, R any](column any, q *QueryCond[T], opts ...OptionFunc
 	return results, resultDb
 }
 
-// SelectListBySQL 按任意SQL执行,指定返回类型数组
+// SelectListBySQL runs a literal SQL string and scans into []*R.
+// Do not concatenate untrusted input into querySQL; use [SelectListBySQLArgs] with placeholders instead.
 func SelectListBySQL[R any](querySQL string, opts ...OptionFunc) ([]*R, *gorm.DB) {
 	resultDb := getDb(opts...)
 	var results []*R
@@ -265,26 +277,51 @@ func SelectListBySQL[R any](querySQL string, opts ...OptionFunc) ([]*R, *gorm.DB
 	return results, resultDb
 }
 
-// SelectOneBySQL 根据原始的SQL语句，取一个
-func SelectOneBySQL[R any](countSQL string, opts ...OptionFunc) (R, *gorm.DB) {
+// SelectListBySQLArgs runs Raw(querySQL, args...) and scans into []*R (parameter binding, safer for dynamic values).
+func SelectListBySQLArgs[R any](querySQL string, args []any, opts ...OptionFunc) ([]*R, *gorm.DB) {
+	resultDb := getDb(opts...)
+	var results []*R
+	resultDb = resultDb.Raw(querySQL, args...).Scan(&results)
+	return results, resultDb
+}
+
+// SelectOneBySQL runs a literal SQL string and scans one row into R.
+// Do not concatenate untrusted input into sqlStr; use [SelectOneBySQLArgs] with placeholders instead.
+func SelectOneBySQL[R any](sqlStr string, opts ...OptionFunc) (R, *gorm.DB) {
 	resultDb := getDb(opts...)
 	var result R
-	resultDb = resultDb.Raw(countSQL).Scan(&result)
+	resultDb = resultDb.Raw(sqlStr).Scan(&result)
 	return result, resultDb
 }
 
-// ExcSQL 按任意SQL执行,返回影响的行
-func ExcSQL(querySQL string, opts ...OptionFunc) *gorm.DB {
+// SelectOneBySQLArgs runs Raw(sqlStr, args...) and scans one row into R.
+func SelectOneBySQLArgs[R any](sqlStr string, args []any, opts ...OptionFunc) (R, *gorm.DB) {
 	resultDb := getDb(opts...)
-	resultDb = resultDb.Exec(querySQL)
-	return resultDb
+	var result R
+	resultDb = resultDb.Raw(sqlStr, args...).Scan(&result)
+	return result, resultDb
+}
+
+// ExecSQL executes a literal SQL string. Prefer [ExecSQLArgs] when values come from request data.
+func ExecSQL(querySQL string, opts ...OptionFunc) *gorm.DB {
+	resultDb := getDb(opts...)
+	return resultDb.Exec(querySQL)
+}
+
+// ExecSQLArgs executes Exec(querySQL, args...).
+func ExecSQLArgs(querySQL string, args []any, opts ...OptionFunc) *gorm.DB {
+	resultDb := getDb(opts...)
+	return resultDb.Exec(querySQL, args...)
+}
+
+// ExcSQL is a deprecated spelling of [ExecSQL]; kept for compatibility.
+func ExcSQL(querySQL string, opts ...OptionFunc) *gorm.DB {
+	return ExecSQL(querySQL, opts...)
 }
 
 // add end
 
-// SelectListGeneric 根据条件查询多条记录
-// 第一个泛型代表数据库表实体
-// 第二个泛型代表返回记录实体
+// SelectListGeneric scans matching rows into []*R (first type param T is the table model, R is the scan shape).
 func SelectListGeneric[T any, R any](q *QueryCond[T], opts ...OptionFunc) ([]*R, *gorm.DB) {
 	resultDb := buildCondition(q, opts...)
 	var results []*R
@@ -324,13 +361,13 @@ func SelectCount[T any](q *QueryCond[T], opts ...OptionFunc) (int64, *gorm.DB) {
 	return count, resultDb
 }
 
-// Exists 根据条件判断记录是否存在
+// Exists reports whether any row matches the query (based on SelectCount).
 func Exists[T any](q *QueryCond[T], opts ...OptionFunc) (bool, error) {
 	count, resultDb := SelectCount[T](q, opts...)
-	if errors.Is(resultDb.Error, gorm.ErrRecordNotFound) {
-		return false, nil
+	if resultDb.Error != nil {
+		return false, resultDb.Error
 	}
-	return count > 0, resultDb.Error
+	return count > 0, nil
 }
 
 // SelectPageGeneric 根据传入的泛型封装分页记录
@@ -362,9 +399,7 @@ func SelectPageGeneric[T any, R any](page *Page[R], q *QueryCond[T], opts ...Opt
 	return page, resultDb
 }
 
-// SelectGeneric 根据传入的泛型封装记录
-// 第一个泛型代表数据库表实体
-// 第二个泛型代表返回记录实体
+// SelectGeneric scans a single row into value type R (filled by Scan; for reference types prefer scanning into *R via GORM models).
 func SelectGeneric[T any, R any](q *QueryCond[T], opts ...OptionFunc) (R, *gorm.DB) {
 	var entity R
 	resultDb := buildCondition(q, opts...)
@@ -392,6 +427,7 @@ func paginate[T any](p *Page[T]) func(db *gorm.DB) *gorm.DB {
 	}
 }
 
+// buildCondition applies q to a new chain on the resolved DB. It resets q.queryArgs each call; the same *QueryCond must not be used concurrently.
 func buildCondition[T any](q *QueryCond[T], opts ...OptionFunc) *gorm.DB {
 	db := getDb(opts...)
 	resultDb := db.Model(new(T))
@@ -474,11 +510,13 @@ func buildSQLAndArgs[T any](expressions []any, sqlBuilder *strings.Builder, quer
 
 func getDb(opts ...OptionFunc) *gorm.DB {
 	option := getOption(opts)
-	// Clauses()目的是为了初始化Db，如果db已经被初始化了,会直接返回db
-	db := globalDb.Clauses()
-
+	var db *gorm.DB
 	if option.Db != nil {
 		db = option.Db.Clauses()
+	} else if globalDb != nil {
+		db = globalDb.Clauses()
+	} else {
+		panic("gplus: database not initialized; call SetDB(*gorm.DB) before using gplus (or pass gplus.Db(...) in options)")
 	}
 
 	if len(option.TableName) > 0 {
@@ -524,27 +562,17 @@ func setOmitIfNeed(option Option, db *gorm.DB) {
 	}
 }
 
+// getPkColumnName returns the first primary-key column DB name from GORM schema parsing.
+// For composite primary keys, only the first column is returned (same limitation as single-id helpers).
 func getPkColumnName[T any]() string {
 	var entity T
-	entityType := reflect.TypeOf(entity)
-	numField := entityType.NumField()
-	var columnName string
-	for i := 0; i < numField; i++ {
-		field := entityType.Field(i)
-		tagSetting := schema.ParseTagSetting(field.Tag.Get("gorm"), ";")
-		isPrimaryKey := utils.CheckTruth(tagSetting["PRIMARYKEY"], tagSetting["PRIMARY_KEY"])
-		if isPrimaryKey {
-			name, ok := tagSetting["COLUMN"]
-			if !ok {
-				namingStrategy := schema.NamingStrategy{}
-				name = namingStrategy.ColumnName("", field.Name)
-			}
-			columnName = name
-			break
-		}
+	var namer schema.Namer = schema.NamingStrategy{}
+	if globalDb != nil {
+		namer = globalDb.Config.NamingStrategy
 	}
-	if columnName == "" {
+	s, err := schema.Parse(&entity, &pkSchemaCache, namer)
+	if err != nil || s == nil || len(s.PrimaryFields) == 0 {
 		return constants.DefaultPrimaryName
 	}
-	return columnName
+	return s.PrimaryFields[0].DBName
 }

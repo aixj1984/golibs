@@ -15,7 +15,14 @@
  * limitations under the License.
  */
 
-// Package gplus is wrap for gorm
+// Package gplus wraps GORM with generic helpers and a pointer-based query builder.
+//
+// Initialization: call SetDB (or Init) with a non-nil *gorm.DB before any query.
+// When using Cache or NewQuery, the global DB must already be set so column naming
+// matches the NamingStrategy on that database.
+//
+// Concurrency: a single *QueryCond must not be used concurrently from multiple goroutines;
+// each query execution mutates internal argument slices on the cond.
 package gplus
 
 import (
@@ -32,7 +39,8 @@ var columnNameCache sync.Map
 // 缓存实体对象，主要给NewQuery方法返回使用
 var modelInstanceCache sync.Map
 
-// Cache 缓存实体对象所有的字段名
+// Cache records column names for field pointers and caches a template *model instance for [NewQuery].
+// Do not mutate the returned template model from [NewQuery]; use it only to take field addresses for conditions.
 func Cache(models ...any) {
 	for _, model := range models {
 		columnNameMap := getColumnNameMap(model)
@@ -106,14 +114,18 @@ func getSubFieldColumnNameMap(valueOf reflect.Value, field reflect.StructField) 
 	return result
 }
 
-// 解析字段名称
+// 解析字段名称（使用当前全局 DB 的 NamingStrategy；若尚未 [SetDB] 则使用默认 schema.NamingStrategy）
 func parseColumnName(field reflect.StructField) string {
 	tagSetting := schema.ParseTagSetting(field.Tag.Get("gorm"), ";")
 	name, ok := tagSetting["COLUMN"]
 	if ok {
 		return name
 	}
-	return globalDb.Config.NamingStrategy.ColumnName("", field.Name)
+	var namer schema.Namer = schema.NamingStrategy{}
+	if globalDb != nil {
+		namer = globalDb.Config.NamingStrategy
+	}
+	return namer.ColumnName("", field.Name)
 }
 
 func getColumnName(v any) string {

@@ -15,15 +15,9 @@
  * limitations under the License.
  */
 
-package constants
+package gplus
 
-const (
-	Comma              = ","
-	LeftBracket        = "("
-	RightBracket       = ")"
-	DefaultPrimaryName = "id"
+import "errors"
 
-	// NullString is the lowercase ASCII literal "null" (e.g. JSON or API conventions).
-	// It is not the SQL NULL keyword; for SQL use IsNull / QueryCond.IsNull (see keyword.go).
-	NullString = "null"
-)
+// ErrEmptyBatch is returned on batch insert helpers when the entities slice is empty.
+var ErrEmptyBatch = errors.New("gplus: batch insert requires at least one entity")

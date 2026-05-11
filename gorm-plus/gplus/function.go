@@ -32,28 +32,28 @@ func (f *Function) As(asName any) string { //nolint
 	return f.funStr + " " + constants.As + " " + getColumnName(asName)
 }
 
-func (f *Function) Eq(value int64) (string, int64) { //nolint
-	return buildFunStr(f.funStr, constants.Eq, value)
+func (f *Function) Eq(value any) (string, any) { //nolint
+	return buildFunStrAny(f.funStr, constants.Eq, value)
 }
 
-func (f *Function) Ne(value int64) (string, int64) { //nolint
-	return buildFunStr(f.funStr, constants.Ne, value)
+func (f *Function) Ne(value any) (string, any) { //nolint
+	return buildFunStrAny(f.funStr, constants.Ne, value)
 }
 
-func (f *Function) Gt(value int64) (string, int64) { //nolint
-	return buildFunStr(f.funStr, constants.Gt, value)
+func (f *Function) Gt(value any) (string, any) { //nolint
+	return buildFunStrAny(f.funStr, constants.Gt, value)
 }
 
-func (f *Function) Ge(value int64) (string, int64) { //nolint
-	return buildFunStr(f.funStr, constants.Ge, value)
+func (f *Function) Ge(value any) (string, any) { //nolint
+	return buildFunStrAny(f.funStr, constants.Ge, value)
 }
 
-func (f *Function) Lt(value int64) (string, int64) { //nolint
-	return buildFunStr(f.funStr, constants.Lt, value)
+func (f *Function) Lt(value any) (string, any) { //nolint
+	return buildFunStrAny(f.funStr, constants.Lt, value)
 }
 
-func (f *Function) Le(value int64) (string, int64) { //nolint
-	return buildFunStr(f.funStr, constants.Le, value)
+func (f *Function) Le(value any) (string, any) { //nolint
+	return buildFunStrAny(f.funStr, constants.Le, value)
 }
 
 func (f *Function) In(values ...any) (string, []any) { //nolint
@@ -68,11 +68,11 @@ func (f *Function) NotIn(values ...any) (string, []any) { //nolint
 	return f.funStr + " " + constants.Not + " " + constants.In + placeholder.String(), values
 }
 
-func (f *Function) Between(start int64, end int64) (string, int64, int64) { //nolint
+func (f *Function) Between(start, end any) (string, any, any) { //nolint
 	return f.funStr + " " + constants.Between + " ? " + constants.And + " ?", start, end //nolint
 }
 
-func (f *Function) NotBetween(start int64, end int64) (string, int64, int64) { //nolint
+func (f *Function) NotBetween(start, end any) (string, any, any) { //nolint
 	return f.funStr + " " + constants.Not + " " + constants.Between + " ? " + constants.And + " ?", start, end //nolint
 }
 
@@ -104,7 +104,7 @@ func addBracket(function string, columnNameStr string) string { //nolint
 	return function + constants.LeftBracket + columnNameStr + constants.RightBracket
 }
 
-func buildFunStr(funcStr string, typeStr string, value int64) (string, int64) { //nolint
+func buildFunStrAny(funcStr string, typeStr string, value any) (string, any) { //nolint
 	return funcStr + " " + typeStr + " ?", value
 }
 

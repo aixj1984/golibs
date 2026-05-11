@@ -95,7 +95,7 @@ func init() {
     log.Println(err)
   }
 
-  // 初始化gplus
+  // 初始化 gplus（与 gplus.SetDB 等价，任选其一）
   gplus.Init(gormDb)
 }
 
@@ -124,7 +124,7 @@ func main() {
 
 	var u User
 	gormDb.AutoMigrate(u)
-	gplus.Init(gormDb)
+	gplus.SetDB(gormDb)
 ```
 
 
@@ -146,9 +146,9 @@ func main() {
 
 ## 总结
 
-从上述步骤中，我们可以看到集成`Gorm-Plus`非常简单。只需在初始化`Gorm`之后添加一行代码`gplus.Init(gormDb)`
+从上述步骤中，我们可以看到集成`Gorm-Plus`非常简单。只需在初始化`Gorm`之后调用 `gplus.Init(gormDb)` 或 `gplus.SetDB(gormDb)` 即可。
 
-即可使用。不仅如此，使用`Gorm-Plus`也同样轻松，只需一行代码即可完成列表查询。
+动态 SQL 请优先使用带参数的 `SelectListBySQLArgs` / `SelectOneBySQLArgs` / `ExecSQLArgs`；`*QueryCond` 不要在多个 goroutine 间共享。不仅如此，使用`Gorm-Plus`也同样轻松，只需一行代码即可完成列表查询。
 
 然而，`Gorm-Plus`的强大功能远不止于此。
 

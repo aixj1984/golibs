@@ -25,7 +25,8 @@ import (
 	"github.com/aixj1984/golibs/gorm-plus/constants"
 )
 
-// QueryCond 是每一次查询的条件对象
+// QueryCond holds WHERE/ORDER/GROUP/HAVING and update-map state for one query type T.
+// It is not safe for concurrent use across goroutines.
 type QueryCond[T any] struct {
 	selectColumns    []string
 	omitColumns      []string
@@ -47,7 +48,8 @@ func (q *QueryCond[T]) getSQLSegment() string {
 	return ""
 }
 
-// NewQuery 构建查询条件
+// NewQuery builds an empty QueryCond and returns a cached template *T for taking field addresses.
+// Do not treat the template *T as a loaded entity or mutate its fields; doing so affects the global model cache.
 func NewQuery[T any]() (*QueryCond[T], *T) {
 	q := &QueryCond[T]{}
 
@@ -63,7 +65,7 @@ func NewQuery[T any]() (*QueryCond[T], *T) {
 	return q, m
 }
 
-// NewQueryModel 构建查询条件
+// NewQueryModel is like [NewQuery] but also returns a template *R for generic scan shapes; do not mutate cached templates.
 func NewQueryModel[T any, R any]() (*QueryCond[T], *T, *R) {
 	q := &QueryCond[T]{}
 	var t *T
@@ -253,6 +255,26 @@ func (q *QueryCond[T]) OrderByAsc(columns ...any) *QueryCond[T] {
 	return q
 }
 
+// Limit sets a row limit on the query (applied after WHERE; use [SelectPage] for page/size semantics).
+func (q *QueryCond[T]) Limit(n int) *QueryCond[T] {
+	if n <= 0 {
+		q.limit = nil
+		return q
+	}
+	q.limit = new(int)
+	*q.limit = n
+	return q
+}
+
+// Offset sets the row offset on the query.
+func (q *QueryCond[T]) Offset(n int) *QueryCond[T] {
+	if n < 0 {
+		n = 0
+	}
+	q.offset = n
+	return q
+}
+
 // Having HAVING SQl语句
 func (q *QueryCond[T]) Having(having string, args ...any) *QueryCond[T] {
 	q.havingBuilder.WriteString(having) //nolint
@@ -267,12 +289,16 @@ func (q *QueryCond[T]) Having(having string, args ...any) *QueryCond[T] {
 	return q
 }
 
-// And 拼接 AND
+// And appends a nested AND group. Every non-nil function in fn is applied in order to the same nested cond (AND-combined inside the parentheses).
 func (q *QueryCond[T]) And(fn ...func(q *QueryCond[T])) *QueryCond[T] {
 	q.addExpression(&sqlKeyword{keyword: constants.And})
 	if len(fn) > 0 {
 		nestQuery := &QueryCond[T]{}
-		fn[0](nestQuery)
+		for _, f := range fn {
+			if f != nil {
+				f(nestQuery)
+			}
+		}
 		q.queryExpressions = append(q.queryExpressions, nestQuery)
 		q.last = nestQuery
 		return q
@@ -280,12 +306,16 @@ func (q *QueryCond[T]) And(fn ...func(q *QueryCond[T])) *QueryCond[T] {
 	return q
 }
 
-// Or 拼接 OR
+// Or appends a nested OR group. Every non-nil function in fn is applied in order to the same nested cond (AND-combined inside the parentheses).
 func (q *QueryCond[T]) Or(fn ...func(q *QueryCond[T])) *QueryCond[T] {
 	q.addExpression(&sqlKeyword{keyword: constants.Or})
 	if len(fn) > 0 {
 		nestQuery := &QueryCond[T]{}
-		fn[0](nestQuery)
+		for _, f := range fn {
+			if f != nil {
+				f(nestQuery)
+			}
+		}
 		q.queryExpressions = append(q.queryExpressions, nestQuery)
 		q.last = nestQuery
 		return q
@@ -357,7 +387,7 @@ func (q *QueryCond[T]) handleSingle(sqlSegment SQLSegment) {
 	}
 
 	// 防止用户重复设置and(),or()
-	isRepeat := q.handelRepeat(sqlSegment)
+	isRepeat := q.handleRepeat(sqlSegment)
 
 	// 如果不是重复设置，则添加
 	if !isRepeat {
@@ -366,7 +396,7 @@ func (q *QueryCond[T]) handleSingle(sqlSegment SQLSegment) {
 	}
 }
 
-func (q *QueryCond[T]) handelRepeat(sqlSegment SQLSegment) bool {
+func (q *QueryCond[T]) handleRepeat(sqlSegment SQLSegment) bool {
 	currentKeyword, isCurrentKeyword := sqlSegment.(*sqlKeyword)
 	lastKeyword, isLastKeyword := q.last.(*sqlKeyword)
 	if isCurrentKeyword && isLastKeyword {
@@ -416,7 +446,8 @@ func (q *QueryCond[T]) buildOrder(orderType string, columns ...string) {
 	}
 }
 
-// AddAndStrCond 执行增加AND条件
+// AddAndStrCond appends a raw SQL fragment as an AND condition (no parameter binding).
+// Only use with trusted, compile-time or strictly validated SQL fragments; never concatenate user input.
 func (q *QueryCond[T]) AddAndStrCond(cond string) *QueryCond[T] {
 	if len(q.queryExpressions) > 0 {
 		sk := sqlKeyword{keyword: constants.And}
@@ -428,7 +459,8 @@ func (q *QueryCond[T]) AddAndStrCond(cond string) *QueryCond[T] {
 	return q
 }
 
-// AddOrStrCond 执行增加OR条件
+// AddOrStrCond appends a raw SQL fragment as an OR condition (no parameter binding).
+// Only use with trusted, compile-time or strictly validated SQL fragments; never concatenate user input.
 func (q *QueryCond[T]) AddOrStrCond(cond string) *QueryCond[T] {
 	if len(q.queryExpressions) > 0 {
 		sk := sqlKeyword{keyword: constants.Or}
@@ -448,7 +480,7 @@ func (q *QueryCond[T]) Case(isTrue bool, handleFunc func()) *QueryCond[T] {
 	return q
 }
 
-// Reset 重置查询条件
+// Reset clears all accumulated state on this cond (including limit/offset and last keyword tracking).
 func (q *QueryCond[T]) Reset() *QueryCond[T] {
 	q.selectColumns = q.selectColumns[:0]
 	q.omitColumns = q.omitColumns[:0]
@@ -460,6 +492,9 @@ func (q *QueryCond[T]) Reset() *QueryCond[T] {
 	q.havingArgs = q.havingArgs[:0]
 	q.queryArgs = q.queryArgs[:0]
 	q.updateMap = nil
+	q.last = nil
+	q.limit = nil
+	q.offset = 0
 
 	return q
 }

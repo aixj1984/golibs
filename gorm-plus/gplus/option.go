@@ -38,18 +38,30 @@ func Db(db *gorm.DB) OptionFunc {
 	}
 }
 
-// Session 创建回话
+// Session creates a GORM session on the current option Db, or on the global DB from [SetDB] if Db was not set yet in this option list.
 func Session(session *gorm.Session) OptionFunc {
 	return func(o *Option) {
-		o.Db = globalDb.Session(session)
+		base := o.Db
+		if base == nil {
+			if globalDb == nil {
+				panic("gplus: Session option requires SetDB or gplus.Db(...) in the same option list")
+			}
+			base = globalDb
+		}
+		o.Db = base.Session(session)
 	}
 }
 
-// Select 指定需要查询的字段
-func Select(columns ...any) OptionFunc {
+// WithSelectColumns appends columns for the optional top-level Select/Omit layer (same as [Select]; prefer this name to avoid confusion with [*QueryCond.Select]).
+func WithSelectColumns(columns ...any) OptionFunc {
 	return func(o *Option) {
 		o.Selects = append(o.Selects, columns...)
 	}
+}
+
+// Select specifies columns for the optional top-level Select/Omit layer (see also [WithSelectColumns]).
+func Select(columns ...any) OptionFunc {
+	return WithSelectColumns(columns...)
 }
 
 // Omit 指定需要忽略的字段
