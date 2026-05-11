@@ -15,96 +15,102 @@ import (
 // TusClient Tus对接客户端类
 type TusClient struct {
 	Endpoint string
+	// HTTPClient 为 nil 时使用 http.DefaultClient。可设置超时等策略。
+	HTTPClient *http.Client
 }
 
 // NewTusClient 实例化一个tus客户端对象
 func NewTusClient(endpoint string) *TusClient {
-	return &TusClient{endpoint}
+	return &TusClient{Endpoint: endpoint}
+}
+
+func (s *TusClient) client() *http.Client {
+	if s != nil && s.HTTPClient != nil {
+		return s.HTTPClient
+	}
+	return http.DefaultClient
+}
+
+func drainAndClose(resp *http.Response) {
+	if resp == nil || resp.Body == nil {
+		return
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+}
+
+func parseUploadOffset(resp *http.Response) (int64, error) {
+	v := resp.Header.Get("Upload-Offset")
+	if v == "" {
+		return 0, errors.New("missing Upload-Offset header in response")
+	}
+	return strconv.ParseInt(v, 10, 64)
 }
 
 // CreateFile 创建文件
 func (s *TusClient) CreateFile(filename string, fileSize int64) (fileID string, err error) {
 	req, err := http.NewRequest(http.MethodPost, s.Endpoint, nil)
 	if err != nil {
-		return
+		return "", err
 	}
 
-	// fmt.Println("FileName:", filename)
-	// fmt.Println("FileSize:", fileSize)
+	req.Header.Set("Upload-Length", strconv.FormatInt(fileSize, 10))
+	req.Header.Set("Tus-Resumable", "1.0.0")
+	req.Header.Set("Upload-Metadata", "filename "+base64.StdEncoding.EncodeToString([]byte(filename)))
 
-	req.Header.Add("Upload-Length", strconv.FormatInt(fileSize, 10))
-	req.Header.Add("Tus-Resumable", "1.0.0")
-	req.Header.Add("Upload-Metadata", "filename "+base64.StdEncoding.EncodeToString([]byte(filename)))
-	response, err := http.DefaultClient.Do(req)
+	response, err := s.client().Do(req)
 	if err != nil {
-		req = nil
-		return
+		return "", err
 	}
-	defer func() {
-		err = response.Body.Close()
-		if err != nil {
-			fmt.Println("response.Body.Close error ", err.Error())
-		}
-	}()
-
-	// fmt.Println("response.StatusCode: ", response.StatusCode)
-	// fmt.Println("http.StatusCreated: ", http.StatusCreated)
+	defer drainAndClose(response)
 
 	if response.StatusCode == http.StatusCreated {
-		fileID = response.Header.Get("Location")
-	} else {
-		err = errors.New("CreateFileInServer failed. " + response.Status)
+		return response.Header.Get("Location"), nil
 	}
-
-	return
+	return "", fmt.Errorf("CreateFileInServer failed: %s", response.Status)
 }
 
 // GetUploadPace 获取已经上传的偏移
 func (s *TusClient) GetUploadPace(fileURL string) (offset int64, err error) {
 	req, err := http.NewRequest(http.MethodHead, fileURL, nil)
 	if err != nil {
-		return
+		return 0, err
 	}
-	req.Header.Add("Tus-Resumable", "1.0.0")
-	response, err := http.DefaultClient.Do(req)
+	req.Header.Set("Tus-Resumable", "1.0.0")
+
+	response, err := s.client().Do(req)
 	if err != nil {
-		return
+		return 0, err
 	}
-	defer func() {
-		err = response.Body.Close()
-		if err != nil {
-			fmt.Println("response.Body.Close error ", err.Error())
-		}
-	}()
-	offset, err = strconv.ParseInt(response.Header.Get("Upload-Offset"), 10, 64)
-	return
+	defer drainAndClose(response)
+
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNoContent {
+		return 0, fmt.Errorf("HEAD failed: %s", response.Status)
+	}
+
+	return strconv.ParseInt(response.Header.Get("Upload-Offset"), 10, 64)
 }
 
-// PatchDataBlock 分块上传
-func (s *TusClient) PatchDataBlock(fileURL string, breakIndex int64, dataBytes []byte) (error, int64) {
-	req, err := http.NewRequest(http.MethodPatch, fileURL, bytes.NewBuffer(dataBytes))
+// PatchDataBlock 分块上传，返回服务端确认的 Upload-Offset。
+func (s *TusClient) PatchDataBlock(fileURL string, breakIndex int64, dataBytes []byte) (newOffset int64, err error) {
+	req, err := http.NewRequest(http.MethodPatch, fileURL, bytes.NewReader(dataBytes))
 	if err != nil {
-		return err, 0
+		return 0, err
 	}
-	req.Header.Add("Content-Type", "application/offset+octet-stream")
-	req.Header.Add("Upload-Offset", strconv.FormatInt(breakIndex, 10))
-	req.Header.Add("Tus-Resumable", "1.0.0")
-	response, err := http.DefaultClient.Do(req)
+	req.Header.Set("Content-Type", "application/offset+octet-stream")
+	req.Header.Set("Upload-Offset", strconv.FormatInt(breakIndex, 10))
+	req.Header.Set("Tus-Resumable", "1.0.0")
+
+	response, err := s.client().Do(req)
 	if err != nil {
-		return err, 0
+		return 0, err
 	}
-	defer func() {
-		err = response.Body.Close()
-		if err != nil {
-			fmt.Println("response.Body.Close error ", err.Error())
-		}
-	}()
+	defer drainAndClose(response)
 
 	if response.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("response, err: %s", response.Status), 0
+		return 0, fmt.Errorf("PATCH failed: %s", response.Status)
 	}
-
-	return nil, int64(len(dataBytes))
+	return parseUploadOffset(response)
 }
 
 // DeleteFile 删除文件
@@ -114,77 +120,73 @@ func (s *TusClient) DeleteFile(fileURL string) error {
 		return err
 	}
 
-	req.Header.Add("Tus-Resumable", "1.0.0")
-	response, err := http.DefaultClient.Do(req)
+	req.Header.Set("Tus-Resumable", "1.0.0")
+	response, err := s.client().Do(req)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		err = response.Body.Close()
-		if err != nil {
-			fmt.Println("response.Body.Close error ", err.Error())
-		}
-	}()
+	defer drainAndClose(response)
 
 	if response.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("response, err: %s", response.Status)
+		return fmt.Errorf("DELETE failed: %s", response.Status)
 	}
 
 	return nil
 }
 
-// GetOssKey 获取文件的key
+// GetOssKey 获取文件的key（相对 Endpoint 的路径前缀）
 func (s *TusClient) GetOssKey(fileURL string) string {
-	return strings.Replace(fileURL, s.Endpoint, "", 1)
+	return strings.TrimPrefix(fileURL, s.Endpoint)
 }
 
-// WriteFile 写文件
-func (s *TusClient) WriteFile(r io.ReadSeeker, fileID string) (error, int64) {
+// WriteFile 写文件，返回服务端最终 Upload-Offset。
+func (s *TusClient) WriteFile(r io.ReadSeeker, fileID string) (finalOffset int64, err error) {
 	offset, err := s.GetUploadPace(fileID)
 	if err != nil {
-		return err, 0
+		return 0, err
 	}
-	offset, err = r.Seek(offset, 0)
+	_, err = r.Seek(offset, io.SeekStart)
 	if err != nil {
-		return err, 0
+		return 0, err
 	}
 
 	buff := make([]byte, 32*1024)
 	for {
-		n, err := r.Read(buff)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
+		n, readErr := r.Read(buff)
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
 				break
 			}
-			return err, 0
+			return 0, readErr
 		}
 		d := buff[:n]
 
-		req, err := http.NewRequest(http.MethodPatch, fileID, bytes.NewBuffer(d))
+		req, err := http.NewRequest(http.MethodPatch, fileID, bytes.NewReader(d))
 		if err != nil {
-			return err, 0
+			return 0, err
 		}
-		req.Header.Add("Content-Type", "application/offset+octet-stream")
-		req.Header.Add("Upload-Offset", strconv.FormatInt(offset, 10))
-		req.Header.Add("Tus-Resumable", "1.0.0")
-		response, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return err, 0
-		}
+		req.Header.Set("Content-Type", "application/offset+octet-stream")
+		req.Header.Set("Upload-Offset", strconv.FormatInt(offset, 10))
+		req.Header.Set("Tus-Resumable", "1.0.0")
 
-		defer func() {
-			err = response.Body.Close()
-			if err != nil {
-				fmt.Println("response.Body.Close error ", err.Error())
-			}
-		}()
+		response, err := s.client().Do(req)
+		if err != nil {
+			return 0, err
+		}
 
 		if response.StatusCode != http.StatusNoContent {
-			return fmt.Errorf("response, err: %s", response.Status), 0
+			drainAndClose(response)
+			return 0, fmt.Errorf("PATCH failed: %s", response.Status)
 		}
-		offset += int64(n)
+
+		newOff, perr := parseUploadOffset(response)
+		drainAndClose(response)
+		if perr != nil {
+			return 0, perr
+		}
+		offset = newOff
 	}
-	return nil, offset
+	return offset, nil
 }
 
 // GetFileSize 获取文件的大小
@@ -192,40 +194,67 @@ func (s *TusClient) GetFileSize(fileID string) (offset int64, err error) {
 	return s.GetUploadPace(fileID)
 }
 
-// DownloadFile 下载文件
+// DownloadFile 使用 HTTP Range 下载（与 tusd ServeContent 行为一致）；若服务端忽略 Range 则按整包回退处理。
 func (s *TusClient) DownloadFile(fileID string, w io.Writer) error {
-	var offset int64
 	fileSize, err := s.GetFileSize(fileID)
 	if err != nil {
 		return err
 	}
+	if fileSize == 0 {
+		return nil
+	}
+
+	var offset int64
 	for offset < fileSize {
 		req, err := http.NewRequest(http.MethodGet, fileID, nil)
 		if err != nil {
 			return err
 		}
-		req.Header.Add("Offset", strconv.FormatInt(offset, 10))
-		response, err := http.DefaultClient.Do(req)
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
+
+		resp, err := s.client().Do(req)
 		if err != nil {
 			return err
 		}
-		d, err := io.ReadAll(response.Body)
-		if err != nil {
-			errClose := response.Body.Close()
-			if errClose != nil {
-				fmt.Printf("response body close error %s\n", errClose.Error())
+
+		switch resp.StatusCode {
+		case http.StatusPartialContent:
+			writ, err := io.Copy(w, resp.Body)
+			drainAndClose(resp)
+			if err != nil {
+				return err
 			}
-			return err
+			offset += writ
+
+		case http.StatusOK:
+			if offset == 0 {
+				writ, err := io.Copy(w, resp.Body)
+				drainAndClose(resp)
+				if err != nil {
+					return err
+				}
+				offset += writ
+			} else {
+				if _, err := io.CopyN(io.Discard, resp.Body, offset); err != nil {
+					drainAndClose(resp)
+					return err
+				}
+				writ, err := io.Copy(w, resp.Body)
+				drainAndClose(resp)
+				if err != nil {
+					return err
+				}
+				offset += writ
+			}
+
+		case http.StatusRequestedRangeNotSatisfiable:
+			drainAndClose(resp)
+			return fmt.Errorf("download range not satisfiable: %s", resp.Status)
+
+		default:
+			drainAndClose(resp)
+			return fmt.Errorf("download failed: %s", resp.Status)
 		}
-		errClose := response.Body.Close()
-		if errClose != nil {
-			fmt.Printf("response body close error %s\n", errClose.Error())
-		}
-		_, err = w.Write(d)
-		if err != nil {
-			return err
-		}
-		offset += int64(len(d))
 	}
 	return nil
 }

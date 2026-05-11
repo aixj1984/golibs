@@ -63,8 +63,11 @@ func TestPatch(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	_, offset := client.PatchDataBlock(fileID, 0, buf)
-	assert.Equal(t, offset, int64(length))
+	offset, err := client.PatchDataBlock(fileID, 0, buf)
+	if err != nil {
+		log.Fatal(err)
+	}
+	assert.Equal(t, int64(length), offset)
 
 	// 设置读取的起始位置（这里设为 10 表示从文件的第 11 个字节开始读取）
 	offset = int64(20)
@@ -77,11 +80,11 @@ func TestPatch(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err, offset = client.PatchDataBlock(fileID, offset, buf)
+	offset, err = client.PatchDataBlock(fileID, offset, buf)
 	if err != nil {
 		fmt.Println("client.PatchDataBlock err: " + err.Error())
 	}
-	assert.Equal(t, offset, int64(length))
+	assert.Equal(t, int64(length+20), offset)
 
 	offset, err = client.GetUploadPace(fileID)
 	if err != nil {
@@ -109,11 +112,11 @@ func TestPatch(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err, offset = client.PatchDataBlock(fileID, 40, buf)
+	offset, err = client.PatchDataBlock(fileID, 40, buf)
 	if err != nil {
 		fmt.Println("client.PatchDataBlock err: " + err.Error())
 	}
-	assert.Equal(t, offset, int64(int64(fd.Size())-40))
+	assert.Equal(t, fd.Size(), offset)
 
 	offset, err = client.GetUploadPace(fileID)
 	if err != nil {
@@ -135,7 +138,7 @@ func TestGetFileSize(t *testing.T) {
 func TestGetKey(t *testing.T) {
 	ossKey := client.GetOssKey(fileID)
 
-	assert.Equal(t, ossKey, strings.Replace(fileID, END_POINT, "", 1))
+	assert.Equal(t, ossKey, strings.TrimPrefix(fileID, END_POINT))
 }
 
 func TestDownload(t *testing.T) {
@@ -177,7 +180,7 @@ func TestCreate2(t *testing.T) {
 		panic(err)
 	}
 	fmt.Println("new file id is : " + fileID)
-	err, _ = client.WriteFile(outFile, fileID)
+	_, err = client.WriteFile(outFile, fileID)
 	if err != nil {
 		panic(err)
 	}
