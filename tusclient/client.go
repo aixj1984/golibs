@@ -1,8 +1,9 @@
-// Package tusclient 是TUS的客户端操作包
+// Package tusclient provides a small client for tus upload servers.
 package tusclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -12,14 +13,22 @@ import (
 	"strings"
 )
 
-// TusClient Tus对接客户端类
+const tusResumableVersion = "1.0.0"
+
+// TusClient is a client for tus upload operations.
 type TusClient struct {
 	Endpoint string
-	// HTTPClient 为 nil 时使用 http.DefaultClient。可设置超时等策略。
+	// HTTPClient uses http.DefaultClient when nil.
 	HTTPClient *http.Client
 }
 
-// NewTusClient 实例化一个tus客户端对象
+// UploadInfo describes the current state returned by a tus HEAD request.
+type UploadInfo struct {
+	Offset int64
+	Length int64
+}
+
+// NewTusClient creates a tus client.
 func NewTusClient(endpoint string) *TusClient {
 	return &TusClient{Endpoint: endpoint}
 }
@@ -47,15 +56,40 @@ func parseUploadOffset(resp *http.Response) (int64, error) {
 	return strconv.ParseInt(v, 10, 64)
 }
 
-// CreateFile 创建文件
+func parseUploadLength(resp *http.Response) (int64, error) {
+	v := resp.Header.Get("Upload-Length")
+	if v == "" {
+		return 0, errors.New("missing Upload-Length header in response")
+	}
+	return strconv.ParseInt(v, 10, 64)
+}
+
+// FileURL returns the full upload URL for a fileID.
+func (s *TusClient) FileURL(fileID string) string {
+	if strings.HasPrefix(fileID, "http://") || strings.HasPrefix(fileID, "https://") {
+		return fileID
+	}
+	return strings.TrimRight(s.Endpoint, "/") + "/" + strings.TrimLeft(fileID, "/")
+}
+
+func (s *TusClient) fileIDFromLocation(location string) string {
+	return strings.TrimPrefix(location, strings.TrimRight(s.Endpoint, "/")+"/")
+}
+
+// CreateFile creates a tus upload resource.
 func (s *TusClient) CreateFile(filename string, fileSize int64) (fileID string, err error) {
-	req, err := http.NewRequest(http.MethodPost, s.Endpoint, nil)
+	return s.CreateFileContext(context.Background(), filename, fileSize)
+}
+
+// CreateFileContext creates a tus upload resource.
+func (s *TusClient) CreateFileContext(ctx context.Context, filename string, fileSize int64) (fileID string, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.Endpoint, nil)
 	if err != nil {
 		return "", err
 	}
 
 	req.Header.Set("Upload-Length", strconv.FormatInt(fileSize, 10))
-	req.Header.Set("Tus-Resumable", "1.0.0")
+	req.Header.Set("Tus-Resumable", tusResumableVersion)
 	req.Header.Set("Upload-Metadata", "filename "+base64.StdEncoding.EncodeToString([]byte(filename)))
 
 	response, err := s.client().Do(req)
@@ -65,41 +99,75 @@ func (s *TusClient) CreateFile(filename string, fileSize int64) (fileID string, 
 	defer drainAndClose(response)
 
 	if response.StatusCode == http.StatusCreated {
-		return response.Header.Get("Location"), nil
+		return s.fileIDFromLocation(response.Header.Get("Location")), nil
 	}
 	return "", fmt.Errorf("CreateFileInServer failed: %s", response.Status)
 }
 
-// GetUploadPace 获取已经上传的偏移
-func (s *TusClient) GetUploadPace(fileURL string) (offset int64, err error) {
-	req, err := http.NewRequest(http.MethodHead, fileURL, nil)
+// HeadUpload returns upload offset and length from a tus HEAD request.
+func (s *TusClient) HeadUpload(ctx context.Context, fileID string) (*UploadInfo, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, s.FileURL(fileID), nil)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	req.Header.Set("Tus-Resumable", "1.0.0")
+	req.Header.Set("Tus-Resumable", tusResumableVersion)
 
 	response, err := s.client().Do(req)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer drainAndClose(response)
 
 	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNoContent {
-		return 0, fmt.Errorf("HEAD failed: %s", response.Status)
+		return nil, fmt.Errorf("HEAD failed: %s", response.Status)
 	}
 
-	return strconv.ParseInt(response.Header.Get("Upload-Offset"), 10, 64)
+	offset, err := parseUploadOffset(response)
+	if err != nil {
+		return nil, err
+	}
+	length, err := parseUploadLength(response)
+	if err != nil {
+		return nil, err
+	}
+	return &UploadInfo{Offset: offset, Length: length}, nil
 }
 
-// PatchDataBlock 分块上传，返回服务端确认的 Upload-Offset。
-func (s *TusClient) PatchDataBlock(fileURL string, breakIndex int64, dataBytes []byte) (newOffset int64, err error) {
-	req, err := http.NewRequest(http.MethodPatch, fileURL, bytes.NewReader(dataBytes))
+// GetUploadOffset returns the uploaded offset for a tus resource.
+func (s *TusClient) GetUploadOffset(ctx context.Context, fileID string) (offset int64, err error) {
+	info, err := s.HeadUpload(ctx, fileID)
+	if err != nil {
+		return 0, err
+	}
+	return info.Offset, nil
+}
+
+// GetUploadPace returns the uploaded offset for a tus resource.
+//
+// Deprecated: use HeadUpload or GetUploadOffset.
+func (s *TusClient) GetUploadPace(fileID string) (offset int64, err error) {
+	return s.GetUploadOffset(context.Background(), fileID)
+}
+
+// PatchDataBlock uploads one byte slice and returns the server-confirmed Upload-Offset.
+func (s *TusClient) PatchDataBlock(fileID string, offset int64, dataBytes []byte) (newOffset int64, err error) {
+	return s.PatchDataBlockContext(context.Background(), fileID, offset, dataBytes)
+}
+
+// PatchDataBlockContext uploads one byte slice and returns the server-confirmed Upload-Offset.
+func (s *TusClient) PatchDataBlockContext(ctx context.Context, fileID string, offset int64, dataBytes []byte) (newOffset int64, err error) {
+	return s.PatchDataBlockReader(ctx, fileID, offset, bytes.NewReader(dataBytes))
+}
+
+// PatchDataBlockReader uploads one data block from r and returns the server-confirmed Upload-Offset.
+func (s *TusClient) PatchDataBlockReader(ctx context.Context, fileID string, offset int64, r io.Reader) (newOffset int64, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, s.FileURL(fileID), r)
 	if err != nil {
 		return 0, err
 	}
 	req.Header.Set("Content-Type", "application/offset+octet-stream")
-	req.Header.Set("Upload-Offset", strconv.FormatInt(breakIndex, 10))
-	req.Header.Set("Tus-Resumable", "1.0.0")
+	req.Header.Set("Upload-Offset", strconv.FormatInt(offset, 10))
+	req.Header.Set("Tus-Resumable", tusResumableVersion)
 
 	response, err := s.client().Do(req)
 	if err != nil {
@@ -113,14 +181,19 @@ func (s *TusClient) PatchDataBlock(fileURL string, breakIndex int64, dataBytes [
 	return parseUploadOffset(response)
 }
 
-// DeleteFile 删除文件
-func (s *TusClient) DeleteFile(fileURL string) error {
-	req, err := http.NewRequest(http.MethodDelete, fileURL, nil)
+// DeleteFile deletes a tus resource.
+func (s *TusClient) DeleteFile(fileID string) error {
+	return s.DeleteFileContext(context.Background(), fileID)
+}
+
+// DeleteFileContext deletes a tus resource.
+func (s *TusClient) DeleteFileContext(ctx context.Context, fileID string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, s.FileURL(fileID), nil)
 	if err != nil {
 		return err
 	}
 
-	req.Header.Set("Tus-Resumable", "1.0.0")
+	req.Header.Set("Tus-Resumable", tusResumableVersion)
 	response, err := s.client().Do(req)
 	if err != nil {
 		return err
@@ -134,14 +207,19 @@ func (s *TusClient) DeleteFile(fileURL string) error {
 	return nil
 }
 
-// GetOssKey 获取文件的key（相对 Endpoint 的路径前缀）
+// GetOssKey extracts a fileID from a full upload URL.
 func (s *TusClient) GetOssKey(fileURL string) string {
-	return strings.TrimPrefix(fileURL, s.Endpoint)
+	return s.fileIDFromLocation(fileURL)
 }
 
-// WriteFile 写文件，返回服务端最终 Upload-Offset。
+// WriteFile writes r to an existing tus resource and returns the final Upload-Offset.
 func (s *TusClient) WriteFile(r io.ReadSeeker, fileID string) (finalOffset int64, err error) {
-	offset, err := s.GetUploadPace(fileID)
+	return s.WriteFileContext(context.Background(), r, fileID)
+}
+
+// WriteFileContext writes r to an existing tus resource and returns the final Upload-Offset.
+func (s *TusClient) WriteFileContext(ctx context.Context, r io.ReadSeeker, fileID string) (finalOffset int64, err error) {
+	offset, err := s.GetUploadOffset(ctx, fileID)
 	if err != nil {
 		return 0, err
 	}
@@ -159,44 +237,38 @@ func (s *TusClient) WriteFile(r io.ReadSeeker, fileID string) (finalOffset int64
 			}
 			return 0, readErr
 		}
-		d := buff[:n]
 
-		req, err := http.NewRequest(http.MethodPatch, fileID, bytes.NewReader(d))
+		newOffset, err := s.PatchDataBlockReader(ctx, fileID, offset, bytes.NewReader(buff[:n]))
 		if err != nil {
 			return 0, err
 		}
-		req.Header.Set("Content-Type", "application/offset+octet-stream")
-		req.Header.Set("Upload-Offset", strconv.FormatInt(offset, 10))
-		req.Header.Set("Tus-Resumable", "1.0.0")
-
-		response, err := s.client().Do(req)
-		if err != nil {
-			return 0, err
-		}
-
-		if response.StatusCode != http.StatusNoContent {
-			drainAndClose(response)
-			return 0, fmt.Errorf("PATCH failed: %s", response.Status)
-		}
-
-		newOff, perr := parseUploadOffset(response)
-		drainAndClose(response)
-		if perr != nil {
-			return 0, perr
-		}
-		offset = newOff
+		offset = newOffset
 	}
 	return offset, nil
 }
 
-// GetFileSize 获取文件的大小
-func (s *TusClient) GetFileSize(fileID string) (offset int64, err error) {
-	return s.GetUploadPace(fileID)
+// GetFileSize returns Upload-Length from a tus HEAD response.
+func (s *TusClient) GetFileSize(fileID string) (length int64, err error) {
+	return s.GetFileSizeContext(context.Background(), fileID)
 }
 
-// DownloadFile 使用 HTTP Range 下载（与 tusd ServeContent 行为一致）；若服务端忽略 Range 则按整包回退处理。
+// GetFileSizeContext returns Upload-Length from a tus HEAD response.
+func (s *TusClient) GetFileSizeContext(ctx context.Context, fileID string) (length int64, err error) {
+	info, err := s.HeadUpload(ctx, fileID)
+	if err != nil {
+		return 0, err
+	}
+	return info.Length, nil
+}
+
+// DownloadFile downloads a tus resource using HTTP Range requests.
 func (s *TusClient) DownloadFile(fileID string, w io.Writer) error {
-	fileSize, err := s.GetFileSize(fileID)
+	return s.DownloadFileContext(context.Background(), fileID, w)
+}
+
+// DownloadFileContext downloads a tus resource using HTTP Range requests.
+func (s *TusClient) DownloadFileContext(ctx context.Context, fileID string, w io.Writer) error {
+	fileSize, err := s.GetFileSizeContext(ctx, fileID)
 	if err != nil {
 		return err
 	}
@@ -206,7 +278,7 @@ func (s *TusClient) DownloadFile(fileID string, w io.Writer) error {
 
 	var offset int64
 	for offset < fileSize {
-		req, err := http.NewRequest(http.MethodGet, fileID, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.FileURL(fileID), nil)
 		if err != nil {
 			return err
 		}

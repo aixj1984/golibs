@@ -127,12 +127,12 @@ func TestPatch(t *testing.T) {
 }
 
 func TestGetFileSize(t *testing.T) {
-	offset, err := client.GetUploadPace(fileID)
+	size, err := client.GetFileSize(fileID)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	assert.Equal(t, offset, int64(946801))
+	assert.Equal(t, size, int64(946801))
 }
 
 func TestGetKey(t *testing.T) {
